@@ -18,6 +18,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Lumina',
+      theme: ThemeData(
+        fontFamily: 'Futura',
+        useMaterial3: true,
+      ),
       home: const SubjectsPage(),
     );
   }
