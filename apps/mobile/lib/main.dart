@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'features/subjects/ui/subjects_page.dart';
+import 'core/ui/main_scaffold.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Futura',
         useMaterial3: true,
       ),
-      home: const SubjectsPage(),
+      home: const MainScaffold(),
     );
   }
 }
