@@ -19,6 +19,11 @@ class SubjectRepository {
             .toList());
   }
 
+  Future<List<Subject>> getSubjects(String uid) async {
+    final snap = await _subjectsRef(uid).orderBy('created_at', descending: true).get();
+    return snap.docs.map((d) => Subject.fromMap(d.id, d.data())).toList();
+  }
+
   Future<void> addSubject({
     required String uid,
     required String subjectName,

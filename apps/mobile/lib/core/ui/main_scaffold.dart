@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../features/calendar/ui/calendar_page.dart';  
 import '../../features/subjects/ui/subjects_page.dart';
 import '../theme/app_colors.dart';
 
@@ -15,7 +16,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   // Pages
   final List<Widget> _pages = [
     const PlaceholderPage(title: 'Home'),
-    const PlaceholderPage(title: 'Calendar'),
+    const CalendarPage(),
     const PlaceholderPage(title: 'Lumina'), // Center item
     const SubjectsPage(),
     const PlaceholderPage(title: 'Kanban'),
