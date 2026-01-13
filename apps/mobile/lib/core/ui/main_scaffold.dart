@@ -3,6 +3,8 @@ import '../../features/calendar/ui/calendar_page.dart';
 import '../../features/subjects/ui/subjects_page.dart';
 import '../theme/app_colors.dart';
 
+import '../../features/kanban/ui/kanban_page.dart';
+
 class MainScaffold extends StatefulWidget {
   const MainScaffold({super.key});
 
@@ -11,7 +13,7 @@ class MainScaffold extends StatefulWidget {
 }
 
 class _MainScaffoldState extends State<MainScaffold> {
-  int _currentIndex = 3; // 'Study' tab seems to be the 4th item (index 3) based on the image: Home, Calendar, Lumina, Study, Kanban. Wait, the image shows: Home, Calendar, Lumina, Study, Kanban. Study is 4th.
+  int _currentIndex = 4; // Default to Kanban for review
 
   // Pages
   final List<Widget> _pages = [
@@ -19,7 +21,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     const CalendarPage(),
     const PlaceholderPage(title: 'Lumina'), // Center item
     const SubjectsPage(),
-    const PlaceholderPage(title: 'Kanban'),
+    const KanbanPage(),
   ];
 
   @override
