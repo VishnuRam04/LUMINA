@@ -8,6 +8,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import 'kanban_board_page.dart';
+
 class KanbanPage extends StatefulWidget {
   const KanbanPage({super.key});
 
@@ -351,6 +353,12 @@ class KanbanBoardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => KanbanBoardPage(board: board)),
+        );
+      },
       onLongPress: () {
         HapticFeedback.mediumImpact();
         showCupertinoModalPopup(

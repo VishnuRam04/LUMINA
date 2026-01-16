@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../domain/kanban_board.dart';
+import '../domain/kanban_task.dart';
 
 class KanbanRepository {
   KanbanRepository(this._db);
@@ -52,5 +53,36 @@ class KanbanRepository {
 
   Future<void> deleteBoard(String boardId) async {
     await _db.collection('boards').doc(boardId).delete();
+  }
+
+  // --- Tasks ---
+
+  Stream<List<KanbanTask>> watchTasks(String boardId) {
+    return _db
+        .collection('boards')
+        .doc(boardId)
+        .collection('tasks')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => KanbanTask.fromMap(d.id, d.data()))
+            .toList());
+  }
+
+  Future<void> addTask({
+    required String boardId,
+    required String title,
+    required String columnId,
+    DateTime? dueDate,
+    String priority = 'low',
+  }) async {
+    await _db.collection('boards').doc(boardId).collection('tasks').add({
+      'title': title,
+      'column_id': columnId,
+      'due_date': dueDate != null ? Timestamp.fromDate(dueDate) : null,
+      'assignees': [], // Placeholder for now
+      'comment_count': 0,
+      'priority': priority,
+      'created_at': FieldValue.serverTimestamp(),
+    });
   }
 }

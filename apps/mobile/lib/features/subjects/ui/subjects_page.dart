@@ -5,6 +5,7 @@ import '../domain/subjects.dart';
 import '../../../core/auth/dev_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
+import 'subject_detail_page.dart';
 class SubjectsPage extends StatefulWidget {
   const SubjectsPage({super.key});
 
@@ -144,6 +145,12 @@ class _SubjectsPageState extends State<SubjectsPage> {
                               child: SubjectCard(
                                 subject: s,
                                 onDelete: () => repo.deleteSubject(uid: uid!, subjectId: s.id),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: s)),
+                                  );
+                                },
                               ),
                             );
                           },
@@ -175,10 +182,12 @@ class SubjectCard extends StatelessWidget {
     super.key,
     required this.subject,
     required this.onDelete,
+    this.onTap,
   });
 
   final Subject subject;
   final VoidCallback onDelete;
+  final VoidCallback? onTap;
 
   // Colors from the palette
   static const deepBlue = Color(0xFF4C4EA1);
@@ -191,6 +200,7 @@ class SubjectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onTap: onTap,
       onLongPress: () {
         HapticFeedback.mediumImpact();
         showCupertinoModalPopup<void>(
