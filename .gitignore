@@ -1,1 +1,11 @@
 .DS_Store
+
+# Python RAG Backend
+services/api/.venv
+services/api/__pycache__/
+services/api/app/__pycache__/
+services/api/app/core/__pycache__/
+services/api/app/services/__pycache__/
+services/api/.env
+services/api/serviceAccountKey.json
+services/api/chroma_db/
