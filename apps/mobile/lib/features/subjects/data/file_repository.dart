@@ -107,4 +107,24 @@ class FileRepository {
       print('Error deleting file from storage: $e');
     }
   }
+  Future<List<String>> getAllUserFiles(String uid) async {
+    try {
+      // 1. Get all subjects
+      final subjectsSnap = await _db.collection('users').doc(uid).collection('subjects').get();
+      
+      List<String> allFilenames = [];
+      
+      // 2. For each subject, get files
+      // Using Future.wait for parallel execution
+      await Future.wait(subjectsSnap.docs.map((subjectDoc) async {
+         final filesSnap = await subjectDoc.reference.collection('files').get();
+         allFilenames.addAll(filesSnap.docs.map((d) => d.data()['name'] as String));
+      }));
+      
+      return allFilenames;
+    } catch (e) {
+      print('Error fetching all user files: $e');
+      return [];
+    }
+  }
 }

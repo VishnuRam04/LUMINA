@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+import os
 from pydantic import BaseModel
 from app.core.firebase import init_firebase
 from app.services.pdf_ingestion import PDFIngestionService
@@ -14,6 +15,11 @@ chat_service = None
 
 @app.on_event("startup")
 async def startup_event():
+    # Set default credentials for Firestore Client
+    # This must be done before initializing FirestoreVectorStore which initializes firestore.Client()
+    # firestore.Client() looks for GOOGLE_APPLICATION_CREDENTIALS env var or gcloud default.
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "serviceAccountKey.json"
+    
     init_firebase()
     global vector_store, chat_service
     # Initialize these only on startup to catch config errors early
@@ -33,7 +39,6 @@ class IngestRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str
-    subject_id: Optional[str] = None # Optional: If None, searches ALL subjects
 
 @app.get("/health")
 def health():
@@ -62,6 +67,21 @@ async def ingest_file(request: IngestRequest):
         print(f"Error processing file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class DeleteRequest(BaseModel):
+    filename: str
+
+@app.post("/delete")
+async def delete_file(request: DeleteRequest):
+    try:
+        if vector_store:
+            vector_store.delete_document(request.filename)
+            return {"status": "success", "message": f"Deleted {request.filename}"}
+        else:
+            raise HTTPException(status_code=500, detail="Vector Store not initialized")
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
@@ -69,7 +89,9 @@ async def chat(request: ChatRequest):
             raise HTTPException(status_code=500, detail="Services not initialized")
             
         # 1. Retrieve Context
-        context_docs = vector_store.similarity_search(request.query, request.subject_id)
+        # Always search globally (subject_id=None)
+        # Increase k to 10 for broader context
+        context_docs = vector_store.similarity_search_with_retry(request.query, None, k=10)
         
         # 2. Generate Answer
         answer = chat_service.get_answer(request.query, context_docs)

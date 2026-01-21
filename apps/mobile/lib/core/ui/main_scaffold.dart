@@ -3,7 +3,8 @@ import '../../features/calendar/ui/calendar_page.dart';
 import '../../features/subjects/ui/subjects_page.dart';
 import '../theme/app_colors.dart';
 
-import '../../features/kanban/ui/kanban_page.dart';
+import '../../features/chat/ui/chat_page.dart';
+import '../../features/kanban/ui/kanban_page.dart';  
 
 class MainScaffold extends StatefulWidget {
   const MainScaffold({super.key});
@@ -13,13 +14,13 @@ class MainScaffold extends StatefulWidget {
 }
 
 class _MainScaffoldState extends State<MainScaffold> {
-  int _currentIndex = 4; // Default to Kanban for review
+  int _currentIndex = 4; // Default to Kanban for review (changed to 2 ideally? No, keep as is unless user asked)
 
   // Pages
   final List<Widget> _pages = [
     const PlaceholderPage(title: 'Home'),
     const CalendarPage(),
-    const PlaceholderPage(title: 'Lumina'), // Center item
+    const ChatPage(), // Replaced Placeholder
     const SubjectsPage(),
     const KanbanPage(),
   ];

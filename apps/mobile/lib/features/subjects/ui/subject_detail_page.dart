@@ -7,6 +7,8 @@ import '../../../../core/auth/dev_auth.dart';
 import '../data/file_repository.dart';
 import '../domain/subject_file.dart';
 import '../domain/subjects.dart';
+import '../../../../core/api/api_client.dart';
+import '../../chat/ui/chat_page.dart';
 
 class SubjectDetailPage extends StatefulWidget {
   final Subject subject;
@@ -63,9 +65,34 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
           filename: filename,
         );
         
+        // TRIGGER INGESTION
+        try {
+           final storagePath = 'users/$uid/subjects/${widget.subject.id}/files/$filename'; 
+           // Note: We need the PRECISE storage path we used in FileRepo.
+           // In FileRepo we sanitized the filename. Ideally FileRepo returns the path.
+           // For now, let's assume standard sanitation or rely on backend to handle standard filename?
+           // Actually, let's stick to the path we know.
+           
+           // Better: Update FileRepo to return the storage path or url.
+           // But let's just construct it here for MVP since we know the logic.
+           // Sanitize logic was: filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+           final safeName = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+           final fullPath = 'users/$uid/subjects/${widget.subject.id}/files/$safeName';
+           
+           await ApiClient().ingestFile(
+             filePath: fullPath, 
+             subjectId: widget.subject.id, 
+             filename: filename
+           );
+           print('Ingestion triggered for $fullPath');
+        } catch (apiErr) {
+           print('Ingestion failed: $apiErr');
+           // Don't block UI success for this, just log it.
+        }
+
         if (mounted) {
            ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('File uploaded successfully')),
+             const SnackBar(content: Text('File uploaded and processing started...')),
            );
         }
       } catch (e) {
@@ -102,8 +129,14 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
           ),
           
           SafeArea(
+            bottom: false,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.only(
+                left: 16, 
+                right: 16, 
+                top: 8, 
+                bottom: 40 + MediaQuery.of(context).padding.bottom
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -149,7 +182,7 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                   const SizedBox(height: 12),
 
                   SizedBox(
-                    height: 160,
+                    height: 180,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: quizzes.length,
@@ -375,20 +408,25 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
            BoxShadow(color: const Color(0xFF4C4EA1).withOpacity(0.3), blurRadius: 4, offset:const Offset(0, 2)),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-           const Icon(Icons.auto_awesome, color: Colors.amber, size: 24),
-           const SizedBox(width: 8),
-           RichText(
-             text: const TextSpan(
-               children: [
-                 TextSpan(text: 'ASK ', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                 TextSpan(text: 'LUMINA', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w400, letterSpacing: 1.5)),
-               ],
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatPage()));
+        },
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+             const Icon(Icons.auto_awesome, color: Colors.amber, size: 24),
+             const SizedBox(width: 8),
+             RichText(
+               text: const TextSpan(
+                 children: [
+                   TextSpan(text: 'ASK ', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                   TextSpan(text: 'LUMINA', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w400, letterSpacing: 1.5)),
+                 ],
+               ),
              ),
-           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -432,7 +470,7 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                   content: Text('Are you sure you want to delete ${file.name}?'),
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                    TextButton(
+                     TextButton(
                       onPressed: () async {
                          Navigator.pop(ctx);
                          await fileRepo.deleteFile(
@@ -441,6 +479,14 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                            fileId: file.id,
                            filename: file.name,
                          );
+                         
+                         // Trigger Backend Deletion
+                         try {
+                           await ApiClient().deleteFile(file.name);
+                           print('Backend deletion triggered for ${file.name}');
+                         } catch (e) {
+                           print('Backend deletion failed: $e');
+                         }
                       }, 
                       child: const Text('Delete', style: TextStyle(color: Colors.red)),
                     ),
