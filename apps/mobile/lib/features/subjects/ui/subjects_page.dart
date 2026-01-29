@@ -114,18 +114,28 @@ class _SubjectsPageState extends State<SubjectsPage> {
               return CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  const SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.only(top: 10.0, bottom: 20.0),
-                      child: Center(
-                        child: Text(
-                          'Subjects',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.black,
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Subjects',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.black,
+                            ),
                           ),
-                        ),
+                          TextButton(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Hello')),
+                              );
+                            },
+                            child: const Text('Say Hello'),
+                          )
+                        ],
                       ),
                     ),
                   ),

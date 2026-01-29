@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../features/calendar/ui/calendar_page.dart';  
 import '../../features/subjects/ui/subjects_page.dart';
+import '../../features/home/ui/home_page.dart';
 import '../theme/app_colors.dart';
 
 import '../../features/chat/ui/chat_page.dart';
@@ -14,13 +15,13 @@ class MainScaffold extends StatefulWidget {
 }
 
 class _MainScaffoldState extends State<MainScaffold> {
-  int _currentIndex = 4; // Default to Kanban for review (changed to 2 ideally? No, keep as is unless user asked)
+  int _currentIndex = 0; // Default to Home
 
-  // Pages
-  final List<Widget> _pages = [
-    const PlaceholderPage(title: 'Home'),
+  // Pages getter to access setState or context if needed
+  List<Widget> get _pages => [
+    HomePage(onAskLuminaPressed: () => setState(() => _currentIndex = 2)),
     const CalendarPage(),
-    const ChatPage(), // Replaced Placeholder
+    const ChatPage(), 
     const SubjectsPage(),
     const KanbanPage(),
   ];
@@ -135,16 +136,4 @@ class _MainScaffoldState extends State<MainScaffold> {
   }
 }
 
-class PlaceholderPage extends StatelessWidget {
-  final String title;
-  const PlaceholderPage({super.key, required this.title});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-}

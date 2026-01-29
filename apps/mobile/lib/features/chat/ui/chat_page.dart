@@ -16,7 +16,8 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<Map<String, String>> _messages = []; // {'role': 'user'|'gemini', 'content': '...'}
+  // STATIC to persist across page switches
+  static final List<Map<String, String>> _messages = []; 
   bool _isLoading = false;
 
   List<String> _allFiles = [];
@@ -28,6 +29,13 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
     _fetchFiles();
     _controller.addListener(_onTextChanged);
+    
+    // Scroll to bottom if messages exist
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_messages.isNotEmpty && _scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
   }
 
   @override
@@ -193,6 +201,16 @@ class _ChatPageState extends State<ChatPage> {
                      Text("Ask Me anything about your notes, tasks, quizzes, or subjects.", style: TextStyle(fontSize: 12, height: 1.4)),
                    ],
                  ),
+               ),
+               // Clear Chat Button
+               IconButton(
+                 icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                 onPressed: () {
+                   setState(() {
+                     _messages.clear();
+                   });
+                 },
+                 tooltip: "Clear Chat",
                )
             ],
           ),
@@ -277,6 +295,11 @@ class _ChatPageState extends State<ChatPage> {
                 listBullet: TextStyle(
                   color: isUser ? Colors.black87 : Colors.white,
                 ),
+                tableHead: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                tableBody: const TextStyle(color: Colors.white),
+                h1: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                h2: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                h3: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -363,7 +386,22 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     try {
-      final response = await ApiClient().chat(text);
+      // Get last 6 messages as history (exclude current user message which is appended locally but not yet in loop if we wanted)
+      // Actually, we just added the new user message to _messages.
+      // So let's take everything valid.
+      final history = _messages
+          .where((m) => m['role'] != null && m['content'] != null)
+          .map((m) => {'role': m['role']!, 'content': m['content']!})
+          .toList();
+          
+      // Remove the last message (which is the current query we just added) to avoid duplication if the backend appends it, 
+      // BUT for simplicity, let's just pass the previous history.
+      // Actually, standard practice: History = [Old Msg 1, Old Msg 2]. Query = "New Msg".
+      if (history.isNotEmpty) {
+          history.removeLast(); 
+      }
+
+      final response = await ApiClient().chat(text, history: history);
       final answer = response['answer']?.toString() ?? "I didn't get an answer.";
       
       setState(() {

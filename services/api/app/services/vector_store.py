@@ -5,19 +5,27 @@ from app.core.config import settings
 from google.cloud import firestore
 import os
 
+class CustomGoogleGenerativeAIEmbeddings(GoogleGenerativeAIEmbeddings):
+    def embed_documents(self, texts: list[str], task_type: str = None) -> list[list[float]]:
+        # Force 768 dimensions
+        return super().embed_documents(texts, task_type=task_type, output_dimensionality=768)
+
+    def embed_query(self, text: str, task_type: str = None) -> list[float]:
+        # Force 768 dimensions
+        return super().embed_query(text, task_type=task_type, output_dimensionality=768)
+
 class VectorStoreService:
     def __init__(self):
         if not settings.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY is missing in environment variables")
             
-        self.embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/text-embedding-004",
+        # Use our Custom class that forces 768 dims
+        self.embeddings = CustomGoogleGenerativeAIEmbeddings(
+            model="models/gemini-embedding-001",
             google_api_key=settings.GOOGLE_API_KEY
         )
         
         # Initialize Firestore Client
-        # We rely on the env var GOOGLE_APPLICATION_CREDENTIALS being set, 
-        # which is standard for Firebase Admin SDK usage.
         self.db = firestore.Client()
         self.collection_name = "vector_store_data"
 
@@ -80,7 +88,7 @@ class VectorStoreService:
         except Exception as e:
            print(f"Error deleting from Vector DB: {e}")
 
-    def similarity_search(self, query: str, subject_id: str = None, k=4):
+    def similarity_search(self, query: str, subject_id: str = None, k=10):
         # Filter by subject_id ONLY if provided
         # LCV for Firestore uses 'filters' argument usually, but LangChain's interface is standard
         # However, for Firestore, we might need to be specific about 'metadata.subject_id'
@@ -100,7 +108,7 @@ class VectorStoreService:
             **search_kwargs
         )
     
-    def similarity_search_with_retry(self, query: str, subject_id: str = None, k=4):
+    def similarity_search_with_retry(self, query: str, subject_id: str = None, k=10):
         try:
             return self.similarity_search(query, subject_id, k)
         except Exception as e:

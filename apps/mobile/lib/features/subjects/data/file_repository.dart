@@ -127,4 +127,8 @@ class FileRepository {
       return [];
     }
   }
+  Future<List<SubjectFile>> getFiles(String uid, String subjectId) async {
+    final snap = await _filesRef(uid, subjectId).orderBy('uploaded_at', descending: true).get();
+    return snap.docs.map((d) => SubjectFile.fromMap(d.id, d.data())).toList();
+  }
 }

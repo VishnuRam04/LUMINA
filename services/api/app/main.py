@@ -39,6 +39,7 @@ class IngestRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str
+    history: list[dict] = [] # [{'role': 'user', 'content': '...'}, ...]
 
 @app.get("/health")
 def health():
@@ -59,7 +60,22 @@ async def ingest_file(request: IngestRequest):
         
         if vector_store:
             vector_store.add_document(text, metadata)
-            return {"status": "success", "message": "File processed and indexed"}
+            
+            # 3. Generate Flashcards (Async background preferred, but blocked here for simplicity)
+            try:
+                from app.services.flashcards import FlashcardService
+                fc_service = FlashcardService()
+                await fc_service.generate_and_save(
+                    subject_id=request.subject_id,
+                    text_content=text,
+                    file_id=request.filename, # Using filename as file_id for now or hash
+                    count=10
+                )
+                print(f"Flashcards generated for {request.filename}")
+            except Exception as fc_e:
+                print(f"Warning: Flashcard generation failed: {fc_e}")
+                
+            return {"status": "success", "message": "File processed, indexed, and flashcards generated"}
         else:
             raise HTTPException(status_code=500, detail="Vector Store not initialized")
             
@@ -94,7 +110,7 @@ async def chat(request: ChatRequest):
         context_docs = vector_store.similarity_search_with_retry(request.query, None, k=10)
         
         # 2. Generate Answer
-        answer = chat_service.get_answer(request.query, context_docs)
+        answer = chat_service.get_answer(request.query, context_docs, request.history)
         
         return {
             "answer": answer,
@@ -103,3 +119,7 @@ async def chat(request: ChatRequest):
     except Exception as e:
         print(f"Error generating answer: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+from app.routers import flashcards, quiz
+app.include_router(flashcards.router, prefix="/flashcards", tags=["flashcards"])
+app.include_router(quiz.router, prefix="/quiz", tags=["quiz"])
