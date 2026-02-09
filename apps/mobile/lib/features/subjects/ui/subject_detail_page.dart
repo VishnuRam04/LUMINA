@@ -32,6 +32,15 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
   String? uid;
   bool isUploading = false;
 
+bool isSearching = false;
+final TextEditingController fileSearchCtrl = TextEditingController();
+String fileQuery = '';
+
+@override
+void dispose() {
+  fileSearchCtrl.dispose();
+  super.dispose();
+}
 
   @override
   void initState() {
@@ -340,6 +349,24 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                               'Notes & Materials',
                               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             ),
+                          
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Search files',
+                                  onPressed: () {
+                                    setState(() {
+                                      isSearching = !isSearching;
+                                      if (!isSearching) {
+                                        fileSearchCtrl.clear();
+                                        fileQuery = '';
+                                      }
+                                    });
+                                  },
+                                  icon: Icon(isSearching ? Icons.close : Icons.search),
+                                ),
+                              ],
+                            ),
                             TextButton.icon(
                               onPressed: isUploading ? null : _pickAndUploadFile,
                               icon: isUploading 
@@ -355,6 +382,21 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                         ),
                         const SizedBox(height: 16),
                         
+                        if (isSearching) ...[
+                        TextField(
+                          controller: fileSearchCtrl,
+                          decoration: InputDecoration(
+                            hintText: 'Search uploaded files...',
+                            prefixIcon: const Icon(Icons.search),
+                            isDense: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onChanged: (v) => setState(() => fileQuery = v.trim().toLowerCase()),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+
                         StreamBuilder<List<SubjectFile>>(
                           stream: fileRepo.watchFiles(uid!, widget.subject.id),
                           builder: (context, snap) {
@@ -362,7 +404,15 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
                             
                             final files = snap.data!;
-                            if (files.isEmpty) {
+
+                            final filtered = fileQuery.isEmpty
+                                ? files
+                                : files.where((f) {
+                                    // Filter by file name
+                                    final name = f.name.toLowerCase();
+                                    return name.contains(fileQuery);
+                                  }).toList();
+                            if (filtered.isEmpty) {
                               return const Padding(
                                 padding: EdgeInsets.all(8.0),
                                 child: Text('No files uploaded yet.', style: TextStyle(color: Colors.grey)),
@@ -370,7 +420,7 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                             }
 
                             return Column(
-                              children: files.map((file) => _buildFileItem(file)).toList(),
+                              children: filtered.map((file) => _buildFileItem(file)).toList(),
                             );
                           },
                         ),

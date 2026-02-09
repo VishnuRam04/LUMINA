@@ -204,13 +204,19 @@ class _ChatPageState extends State<ChatPage> {
                ),
                // Clear Chat Button
                IconButton(
-                 icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                  onPressed: () {
                    setState(() {
                      _messages.clear();
                    });
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(
+                       content: Text("Chat history cleared. Start a new conversation!"),
+                       duration: Duration(seconds: 2),
+                     ),
+                   );
                  },
-                 tooltip: "Clear Chat",
+                 tooltip: "Clear Chat History",
                )
             ],
           ),

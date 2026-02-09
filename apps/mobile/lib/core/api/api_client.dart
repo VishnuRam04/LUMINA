@@ -13,9 +13,8 @@ class ApiClient {
     if (Platform.isAndroid) {
       return 'http://10.0.2.2:8000'; // Android Emulator
     }
-    // For iOS Simulator: 127.0.0.1 is fine.
     // For Physical Device: CHANGE THIS to your LAN IP!
-    return 'http://172.17.94.57:8000';
+    return 'http://0.0.0.0:8000';
   } 
 
   Future<void> ingestFile({

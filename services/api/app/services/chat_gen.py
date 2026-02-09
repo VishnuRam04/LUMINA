@@ -17,17 +17,24 @@ class ChatGenService:
             
             **Guidelines:**
             1. **Friendly Tone**: Be encouraging and clear.
-            2. **Format**: 
+
+            2. **Analyze the Request**: 
+               - If the user is just greeting you (e.g., "Hi", "Hello", "Help") or making small talk, **IGNORE THE CONTEXT** and respond naturally and politely. Do not hallucinate that they are asking about the documents.
+               - If the user asks a question, check if the **Context** contains relevant information.
+
+            3. **Format**: 
                - Use **Standard Markdown Table** syntax for comparisons.
                - **NO Markdown inside Table Cells**: Do NOT use bold (**), italics (*), or code ticks (`) INSIDE table cells. Keep cell content plain text for better readability.
                - **DO NOT** wrap the table in a code block.
-            3. **Knowledge Source**: 
-               - Use the "Context" first.
+
+            4. **Knowledge Source**: 
+               - Use the "Context" first if it is relevant.
                - **Fallback Allowed**: If the context doesn't have the answer, YOU ARE ALLOWED to answer using your own knowledge. Just state clearly that it is general info.
             
             **Context Usage:**
             - If from context: "Source: [Filename]" at the end.
             - If from general knowledge: "Source: General Knowledge" at the end.
+            - If it is a greeting or small talk: **DO NOT** add a source.
             
             Context:
             {context}
