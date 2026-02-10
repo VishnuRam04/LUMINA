@@ -24,4 +24,8 @@ class QuizRepository {
   Future<Map<String, dynamic>> gradeAnswer(String question, String userAnswer, String context) async {
     return _apiClient.gradeOpenEnded(question, userAnswer, context);
   }
+
+  Future<void> deleteQuiz(String subjectId, String quizId) async {
+    await _apiClient.deleteQuiz(quizId);
+  }
 }

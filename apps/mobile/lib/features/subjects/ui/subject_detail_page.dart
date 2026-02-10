@@ -230,87 +230,6 @@ void dispose() {
                         
                         final quizzes = snapshot.data ?? [];
                         
-                        if (quizzes.isEmpty) {
-                          // Show Suggestions (Keep existing logic)
-                          return FutureBuilder<List<SubjectFile>>(
-                            future: fileRepo.getFiles(uid!, widget.subject.id),
-                            builder: (context, fileSnap) {
-                              if (!fileSnap.hasData) return const Center(child: CircularProgressIndicator());
-                              final files = fileSnap.data!;
-                              if (files.isEmpty) return const Center(child: Text("Upload files to get quiz suggestions!", style: TextStyle(color: Colors.grey)));
-
-                              // Group files into chunks of 3
-                              List<List<SubjectFile>> chunks = [];
-                              for (var i = 0; i < files.length; i += 3) {
-                                chunks.add(files.sublist(i, i + 3 > files.length ? files.length : i + 3));
-                              }
-
-                              return ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: chunks.length,
-                                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                                itemBuilder: (context, index) {
-                                  final chunk = chunks[index];
-                                  final title = (chunk.length == files.length) 
-                                      ? "Full Subject Quiz" 
-                                      : "Chapters ${index * 3 + 1} - ${index * 3 + chunk.length}";
-                                      
-                                  // Suggestion Card
-                                  return Container(
-                                    width: 200,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF7E57C2), // Purple like screenshot
-                                      borderRadius: BorderRadius.circular(20),
-                                      boxShadow: [BoxShadow(color: const Color(0xFF7E57C2).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))],
-                                    ),
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                        const SizedBox(height: 4),
-                                        Text("${chunk.length} Chapters", style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                                        const Spacer(),
-                                        // Illustration placeholder (simple icon for now)
-                                        const Align(alignment: Alignment.centerRight, child: Icon(Icons.school, color: Colors.white24, size: 40)),
-                                        const Spacer(),
-                                        ElevatedButton(
-                                          onPressed: () async {
-                                            // Trigger Generation
-                                            // Reuse existing dialog logic or direct? Direct is better for "Let's Go" feel.
-                                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating Quiz...")));
-                                            try {
-                                              // Direct generate
-                                              final quiz = await quizRepo.generateQuiz(
-                                                widget.subject.id, 
-                                                chunk.map((f) => f.name).toList(), // Use safe list
-                                                count: 10,
-                                                difficulty: "Medium"
-                                              );
-                                              if (context.mounted) {
-                                                await Navigator.push(context, MaterialPageRoute(builder: (_) => QuizPage(quiz: quiz)));
-                                                _refreshQuizzes();
-                                              }
-                                            } catch (e) {
-                                              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                                            }
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFFFFD54F), // Yellow button
-                                            foregroundColor: Colors.black,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          ),
-                                          child: const Text("Let's go!", style: TextStyle(fontWeight: FontWeight.bold)),
-                                        )
-                                      ],
-                                    ),
-                                  );
-                                },
-                              );
-                            }
-                          );
-                        }
-                        
                         return ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: quizzes.length,
@@ -509,11 +428,57 @@ void dispose() {
   }
 
   Widget _buildQuizCard(Quiz quiz) {
-    // Mock progress for now or store it? storing progress requires QuizAttempt model.
-    // Allow retaking for now.
+
     double progress = 0.0; 
 
-    return Container(
+    return GestureDetector(
+      onLongPress: () {
+        showModalBottomSheet(
+          context: context,
+          builder: (_) {
+            return SafeArea(
+              child: ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete quiz'),
+                onTap: () async {
+                  Navigator.pop(context); // close bottom sheet
+
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete quiz?'),
+                      content: Text('Delete "${quiz.title}"?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm != true) return;
+
+                  // delete quiz
+                  await quizRepo.deleteQuiz(widget.subject.id, quiz.id);
+
+                  // refresh quizzes
+                  setState(() {
+                    _quizzesFuture =
+                        quizRepo.fetchQuizzes(widget.subject.id);
+                  });
+                },
+              ),
+            );
+          },
+        );
+      },
+
+      child: Container(
       width: 160,
       decoration: BoxDecoration(
         color: Colors.white,
@@ -528,7 +493,6 @@ void dispose() {
         children: [
           Text(quiz.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
-          const Text('Difficulty: Medium', style: TextStyle(fontSize: 10, color: Colors.black54)), // Difficulty not stored in Quiz model yet? It was in Request. Add if needed.
           Text('${quiz.questions.length} Questions', style: const TextStyle(fontSize: 10, color: Colors.black54)),
           const Spacer(),
           // Button
@@ -549,6 +513,7 @@ void dispose() {
           )
         ],
       ),
+    ),
     );
   }
 

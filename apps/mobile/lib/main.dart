@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/ui/main_scaffold.dart';
+import 'features/auth/ui/auth_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +23,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Futura',
         useMaterial3: true,
       ),
-      home: const MainScaffold(),
+      home: const AuthPage(),
     );
   }
 }

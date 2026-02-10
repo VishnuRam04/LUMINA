@@ -65,6 +65,16 @@ def list_quizzes(subject_id: str):
     quizzes.sort(key=lambda x: x.created_at, reverse=True)
     return quizzes
 
+@router.delete("/delete/{quiz_id}")
+async def delete_quiz(quiz_id: str):
+    service = get_service()
+    db = service.vector_store.db
+    try:
+        db.collection("quizzes").document(quiz_id).delete()
+        return {"status": "success", "message": f"Quiz {quiz_id} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/grade", response_model=GradeResponse)
 async def grade_answer(req: GradeOpenEndedRequest):
     service = get_service()

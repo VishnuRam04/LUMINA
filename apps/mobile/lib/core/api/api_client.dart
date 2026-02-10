@@ -190,4 +190,17 @@ class ApiClient {
       rethrow;
     }
   }
+
+  Future<void> deleteQuiz(String quizId) async {
+    final url = Uri.parse('$baseUrl/quiz/delete/$quizId');
+    try {
+      final response = await http.delete(url);
+      if (response.statusCode != 200) {
+        throw Exception('Failed to delete quiz: ${response.body}');
+      }
+    } catch (e) {
+      print('API Error: $e');
+      rethrow;
+    }
+  }
 }
