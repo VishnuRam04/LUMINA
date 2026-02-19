@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/api/api_client.dart';
 import '../domain/flashcard.dart';
@@ -11,7 +12,14 @@ class FlashcardRepository {
         _apiClient = apiClient ?? ApiClient();
 
   Stream<List<Flashcard>> watchCards(String subjectId, {String? fileId}) {
-    Query query = _firestore.collection('flashcards').where('subject_id', isEqualTo: subjectId);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value([]);
+
+    Query query = _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('flashcards')
+        .where('subject_id', isEqualTo: subjectId);
     
     if (fileId != null) {
       // Assuming file_id is stored in snake_case in Firestore (from Python model)

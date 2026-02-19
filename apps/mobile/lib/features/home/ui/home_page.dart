@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/auth/dev_auth.dart';
+import '../../auth/ui/auth_page.dart';
 import '../../calendar/data/event_repository.dart';
 import '../../calendar/domain/event.dart';
 import '../../calendar/data/task_repository.dart';
@@ -97,16 +99,33 @@ class _HomePageState extends State<HomePage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // App Bar / Title
-                              const Padding(
-                                padding: EdgeInsets.only(left: 8.0),
-                                child: Text(
-                                  'Dash',
-                                  style: TextStyle(
-                                    fontSize: 14, 
-                                    color: Colors.grey, 
-                                    fontWeight: FontWeight.w400
-                                  ),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8.0),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Dash',
+                                      style: TextStyle(
+                                        fontSize: 14, 
+                                        color: Colors.grey, 
+                                        fontWeight: FontWeight.w400
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () async {
+                                        await FirebaseAuth.instance.signOut();
+                                        if (context.mounted) {
+                                          Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(builder: (_) => const AuthPage()),
+                                            (route) => false,
+                                          );
+                                        }
+                                      },
+                                      icon: const Icon(Icons.logout, size: 16, color: Colors.red),
+                                      label: const Text("Sign Out", style: TextStyle(color: Colors.red, fontSize: 12)),
+                                    ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 16),

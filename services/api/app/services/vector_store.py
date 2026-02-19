@@ -58,9 +58,9 @@ class VectorStoreService:
         )
         print("Documents added to Vector DB.")
 
-    def delete_document(self, filename: str):
-        """Removes all chunks associated with a specific filename."""
-        print(f"Deleting document: {filename}")
+    def delete_document(self, uid: str, filename: str):
+        """Removes all chunks associated with a specific filename for a specific user."""
+        print(f"Deleting document: {filename} for user: {uid}")
         try:
            # Firestore Vector Store doesn't expose a clean 'delete by metadata' yet via LangChain
            # So we use standard Firestore query.
@@ -68,6 +68,7 @@ class VectorStoreService:
            # LangChain stores metadata in the 'metadata' map field.
            
            docs = self.db.collection(self.collection_name)\
+                    .where("metadata.user_id", "==", uid)\
                     .where("metadata.filename", "==", filename)\
                     .stream()
            
@@ -88,29 +89,23 @@ class VectorStoreService:
         except Exception as e:
            print(f"Error deleting from Vector DB: {e}")
 
-    def similarity_search(self, query: str, subject_id: str = None, k=10):
-        # Filter by subject_id ONLY if provided
-        # LCV for Firestore uses 'filters' argument usually, but LangChain's interface is standard
-        # However, for Firestore, we might need to be specific about 'metadata.subject_id'
-        # The standard similarity_search takes filter={'key': 'val'}
-        # Let's try standard first. If it fails, we check internal implementation.
-        # langchain-google-firestore supports standard dict filters matching metadata.
+    def similarity_search(self, query: str, user_id: str, subject_id: str = None, k=10):
+        # Filter by user_id AND subject_id (if provided)
+        # LangChain Firestore VectorStore supports dict filters for equality matches.
         
-        # NOTE: Using filters often requires a Composite Index in Firestore if combining with vector search.
-        # For now, let's keep it simple.
-        
-        search_kwargs = {"k": k}
+        filter_dict = {"user_id": user_id}
         if subject_id:
-            search_kwargs["filter"] = {"subject_id": subject_id} # LangChain usually maps this to metadata.subject_id
+            filter_dict["subject_id"] = subject_id
             
         return self.vector_db.similarity_search(
-            query, 
-            **search_kwargs
+            query,
+            k=k,
+            filter=filter_dict
         )
     
-    def similarity_search_with_retry(self, query: str, subject_id: str = None, k=10):
+    def similarity_search_with_retry(self, query: str, user_id: str, subject_id: str = None, k=10):
         try:
-            return self.similarity_search(query, subject_id, k)
+            return self.similarity_search(query, user_id, subject_id, k)
         except Exception as e:
             # Check if it's a gRPC error with the link
             error_str = str(e)
@@ -127,11 +122,11 @@ class VectorStoreService:
                 print("="*80 + "\n")
             raise e
     
-    def as_retriever(self, subject_id: str = None):
-        search_kwargs = {}
+    def as_retriever(self, user_id: str, subject_id: str = None):
+        filter_dict = {"user_id": user_id}
         if subject_id:
-            search_kwargs["filter"] = {"subject_id": subject_id}
+            filter_dict["subject_id"] = subject_id
             
         return self.vector_db.as_retriever(
-            search_kwargs=search_kwargs
+            search_kwargs={"filter": filter_dict}
         )

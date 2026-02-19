@@ -30,7 +30,7 @@ class _QuizPageState extends State<QuizPage> {
     _pageController = PageController();
   }
 
-  void _nextPage() {
+  Future<void> _nextPage() async {
     if (_currentIndex < widget.quiz.questions.length - 1) {
       _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       setState(() {
@@ -39,7 +39,23 @@ class _QuizPageState extends State<QuizPage> {
       });
     } else {
       // Finish
-      Navigator.pop(context);
+      int correctCount = 0;
+      _feedback.forEach((key, value) {
+        if (value['is_correct'] == true) correctCount++;
+      });
+      double finalScore = (correctCount / widget.quiz.questions.length) * 100;
+
+      try {
+        await _repo.updateScore(widget.quiz.id, finalScore);
+      } catch (e) {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save score: $e')));
+        }
+      }
+      
+      if (mounted) {
+        Navigator.pop(context);
+      }
     }
   }
 

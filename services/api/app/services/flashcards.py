@@ -9,17 +9,15 @@ from app.models.flashcard import Flashcard
 class FlashcardService:
     def __init__(self):
         self.db = firestore.Client()
-        self.collection = "flashcards"
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash", # Or gemini-1.5-flash
             google_api_key=settings.GOOGLE_API_KEY,
             temperature=0.3, # Creative but structured
             convert_system_message_to_human=True
         )
-
-    async def generate_and_save(self, subject_id: str, text_content: str, file_id: str = None, count: int = 10) -> list[Flashcard]:
+    async def generate_and_save(self, uid: str, subject_id: str, text_content: str, file_id: str = None, count: int = 10) -> list[Flashcard]:
         """
-        Generates flashcards from text using LLM and saves to Firestore.
+        Generates flashcards from text using LLM and saves to Firestore under the user.
         """
         prompt = f"""
         You are an expert tutor. Create {count} high-quality flashcards based on the following text.
@@ -47,7 +45,6 @@ class FlashcardService:
             ])
             
             content = response.content.strip()
-            # Clean possible markdown ```json
             if content.startswith("```"):
                 content = content.split("\n", 1)[1]
                 content = content.rsplit("```", 1)[0]
@@ -55,17 +52,19 @@ class FlashcardService:
             card_data_list = json.loads(content)
             
             created_cards = []
+            
+            # Use batch for efficiency
             batch = self.db.batch()
+            col_ref = self.db.collection("users").document(uid).collection("flashcards")
             
             for item in card_data_list:
-                doc_ref = self.db.collection(self.collection).document()
+                doc_ref = col_ref.document()
                 card = Flashcard(
                     id=doc_ref.id,
                     subject_id=subject_id,
                     file_id=file_id,
                     front=item['front'],
                     back=item['back'],
-                    # Defaults for SM-2
                     repetition=0,
                     interval=0,
                     ease_factor=2.5,
@@ -83,38 +82,29 @@ class FlashcardService:
             print(f"Error generating flashcards: {e}")
             return []
 
-    def get_cards_for_subject(self, subject_id: str):
-        docs = self.db.collection(self.collection).where("subject_id", "==", subject_id).stream()
+    def get_cards_for_subject(self, uid: str, subject_id: str):
+        docs = self.db.collection("users").document(uid).collection("flashcards") \
+            .where("subject_id", "==", subject_id).stream()
         return [Flashcard(**d.to_dict()) for d in docs]
     
-    def get_cards_due(self, subject_id: str):
+    def get_cards_due(self, uid: str, subject_id: str):
         now = datetime.now()
-        docs = self.db.collection(self.collection)\
-            .where("subject_id", "==", subject_id)\
-            .where("next_review", "<=", now)\
-            .stream()
-        # Firestore might need composite index for this query. 
-        # Alternatively, fetch all for subject and filter in python if set is small.
-        # For now, let's filter in Py to avoid Index Required errors during dev.
-        all_cards = self.get_cards_for_subject(subject_id)
+        # For now, fetch all and filter to avoid needing composite index immediately
+        all_cards = self.get_cards_for_subject(uid, subject_id)
         return [c for c in all_cards if c.next_review <= now]
 
-    def update_card_sm2(self, card_id: str, quality: int):
+    def update_card_sm2(self, uid: str, card_id: str, quality: int):
         """
         Updates a card's schedule using the SM-2 algorithm.
         quality: 0-5
         """
-        doc_ref = self.db.collection(self.collection).document(card_id)
+        doc_ref = self.db.collection("users").document(uid).collection("flashcards").document(card_id)
         snap = doc_ref.get()
         if not snap.exists:
             raise ValueError("Card not found")
         
         data = snap.to_dict()
         card = Flashcard(**data)
-        
-        # SM-2 Algorithm
-        # q: 0-5. 
-        # In our UI: "Needed Review" -> 1, "I Got It" -> 4 or 5.
         
         if quality >= 3:
             if card.repetition == 0:
@@ -131,9 +121,6 @@ class FlashcardService:
             card.interval = 1
             card.status = "learning"
         
-        # Update Ease Factor
-        # EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-        # EF min = 1.3
         card.ease_factor = card.ease_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
         if card.ease_factor < 1.3:
             card.ease_factor = 1.3

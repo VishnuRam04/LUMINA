@@ -23,6 +23,8 @@ class Quiz(BaseModel):
     file_ids: List[str] = [] # Chapters covered
     questions: List[QuizQuestion]
     created_at: datetime = Field(default_factory=datetime.now)
+    last_score: Optional[float] = None
+    attempts: int = 0
 
 class GenerateQuizRequest(BaseModel):
     subject_id: str
@@ -40,3 +42,6 @@ class GradeResponse(BaseModel):
     score: int # 0-100
     feedback: str
     improvement_tip: str
+
+class UpdateQuizScoreRequest(BaseModel):
+    score: float

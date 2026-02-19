@@ -494,14 +494,22 @@ void dispose() {
           Text(quiz.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
           Text('${quiz.questions.length} Questions', style: const TextStyle(fontSize: 10, color: Colors.black54)),
+          if (quiz.lastScore != null) ...[
+             const SizedBox(height: 2),
+             Text('Score: ${quiz.lastScore!.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green)),
+          ],
+          if (quiz.attempts > 0)
+             Text('Attempts: ${quiz.attempts}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+             
           const Spacer(),
           // Button
           SizedBox(
             width: double.infinity,
             height: 28,
             child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => QuizPage(quiz: quiz)));
+              onPressed: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => QuizPage(quiz: quiz)));
+                _refreshQuizzes();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4C4EA1),

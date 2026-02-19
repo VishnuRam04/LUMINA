@@ -28,4 +28,7 @@ class QuizRepository {
   Future<void> deleteQuiz(String subjectId, String quizId) async {
     await _apiClient.deleteQuiz(quizId);
   }
+  Future<void> updateScore(String quizId, double score) async {
+    await _apiClient.updateQuizScore(quizId, score);
+  }
 }

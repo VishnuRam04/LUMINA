@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
-from app.models.quiz import Quiz, GenerateQuizRequest, GradeOpenEndedRequest, GradeResponse, QuizQuestion
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.quiz import Quiz, GenerateQuizRequest, GradeOpenEndedRequest, GradeResponse, QuizQuestion, UpdateQuizScoreRequest
 from app.services.quiz_service import QuizService
+from app.dependencies.auth import get_current_user
 from google.cloud import firestore
 import uuid
 from datetime import datetime
@@ -15,8 +16,9 @@ def get_service():
     return _service
 
 @router.post("/generate", response_model=Quiz)
-async def generate_quiz(req: GenerateQuizRequest):
+async def generate_quiz(req: GenerateQuizRequest, user: dict = Depends(get_current_user)):
     service = get_service()
+    uid = user['uid']
     
     # Generate Questions
     questions = await service.generate_quiz(
@@ -39,18 +41,21 @@ async def generate_quiz(req: GenerateQuizRequest):
         created_at=datetime.now()
     )
     
-    # Save to Firestore (Reuse vector_store's db client or new one)
-    # Using service.vector_store.db for convenience
+    # Save to Firestore (Scoped to User)
     db = service.vector_store.db
-    db.collection("quizzes").document(quiz.id).set(quiz.model_dump())
+    # Path: users/{uid}/quizzes/{quiz_id}
+    db.collection("users").document(uid).collection("quizzes").document(quiz.id).set(quiz.model_dump())
     
     return quiz
 
 @router.get("/list/{subject_id}", response_model=list[Quiz])
-def list_quizzes(subject_id: str):
+def list_quizzes(subject_id: str, user: dict = Depends(get_current_user)):
     service = get_service()
+    uid = user['uid']
     db = service.vector_store.db
-    docs = db.collection("quizzes")\
+    
+    # Query: users/{uid}/quizzes where subject_id == ...
+    docs = db.collection("users").document(uid).collection("quizzes")\
              .where("subject_id", "==", subject_id)\
              .stream()
     
@@ -66,17 +71,42 @@ def list_quizzes(subject_id: str):
     return quizzes
 
 @router.delete("/delete/{quiz_id}")
-async def delete_quiz(quiz_id: str):
+async def delete_quiz(quiz_id: str, user: dict = Depends(get_current_user)):
     service = get_service()
+    uid = user['uid']
     db = service.vector_store.db
     try:
-        db.collection("quizzes").document(quiz_id).delete()
+        # Path: users/{uid}/quizzes/{quiz_id}
+        db.collection("users").document(uid).collection("quizzes").document(quiz_id).delete()
         return {"status": "success", "message": f"Quiz {quiz_id} deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/grade", response_model=GradeResponse)
-async def grade_answer(req: GradeOpenEndedRequest):
+async def grade_answer(req: GradeOpenEndedRequest, user: dict = Depends(get_current_user)):
     service = get_service()
+    # Grading is stateless but we require auth
     result = await service.grade_open_ended(req.question, req.user_answer, req.context or "")
     return result
+
+@router.post("/score/{quiz_id}")
+async def update_quiz_score(quiz_id: str, req: UpdateQuizScoreRequest, user: dict = Depends(get_current_user)):
+    service = get_service()
+    uid = user['uid']
+    db = service.vector_store.db
+    
+    doc_ref = db.collection("users").document(uid).collection("quizzes").document(quiz_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+        
+    try:
+        # Atomic increment of attempts and update of last_score
+        doc_ref.update({
+            "last_score": req.score,
+            "attempts": firestore.Increment(1)
+        })
+        return {"status": "success", "message": "Score updated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

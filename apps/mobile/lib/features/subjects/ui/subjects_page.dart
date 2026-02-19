@@ -1,11 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../../core/api/api_client.dart';
 import '../data/subject_repository.dart';
+import '../data/file_repository.dart';
 import '../domain/subjects.dart';
 import '../../../core/auth/dev_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'subject_detail_page.dart';
+
 class SubjectsPage extends StatefulWidget {
   const SubjectsPage({super.key});
 
@@ -15,13 +21,18 @@ class SubjectsPage extends StatefulWidget {
 
 class _SubjectsPageState extends State<SubjectsPage> {
   late final SubjectRepository repo;
+  late final FileRepository fileRepo;
   final ScrollController _scrollController = ScrollController();
   String? uid;
+  
+  // Track uploading state for each subject ID
+  final Map<String, bool> _uploadingStates = {};
 
   @override
   void initState() {
     super.initState();
     repo = SubjectRepository(FirebaseFirestore.instance);
+    fileRepo = FileRepository(FirebaseFirestore.instance, FirebaseStorage.instance);
     _init();
   }
 
@@ -34,6 +45,67 @@ class _SubjectsPageState extends State<SubjectsPage> {
   Future<void> _init() async {
     final u = await DevAuth.ensureSignedIn();
     setState(() => uid = u);
+  }
+
+  Future<void> _studyPlan(Subject subject) async {
+     // Placeholder for actual Study Plan UI or logic if separate from upload
+     // For now, let's assume the upload IS the trigger for the study plan.
+     await _pickAndUploadFile(subject);
+  }
+
+  Future<void> _pickAndUploadFile(Subject subject) async {
+    if (uid == null) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      setState(() => _uploadingStates[subject.id] = true);
+      try {
+        final file = File(result.files.single.path!);
+        final filename = result.files.single.name;
+        
+        await fileRepo.uploadFile(
+          uid: uid!,
+          subjectId: subject.id,
+          file: file,
+          filename: filename,
+        );
+        
+        // TRIGGER INGESTION
+        try {
+           final safeName = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+           final fullPath = 'users/$uid/subjects/${subject.id}/files/$safeName';
+           
+           await ApiClient().studyPlan(
+             filePath: fullPath, 
+             subjectId: subject.id, 
+             filename: filename
+           );
+           print('Study plan generated for $fullPath');
+        } catch (apiErr) {
+           print('Study plan generation failed: $apiErr');
+        }
+
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('Study Plan Uploaded. Processing...')),
+           );
+        }
+      } catch (e) {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('Upload failed: $e')),
+           );
+        }
+      } finally {
+        if (mounted) {
+           setState(() => _uploadingStates[subject.id] = false);
+        }
+      }
+    }
   }
 
   Future<void> _showAddDialog() async {
@@ -116,7 +188,7 @@ class _SubjectsPageState extends State<SubjectsPage> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.only(top: 10.0, bottom: 20.0),
+                      padding: const EdgeInsets.only(top: 10.0, bottom: 20.0),
                       child: Column(
                         children: [
                           const Text(
@@ -127,14 +199,7 @@ class _SubjectsPageState extends State<SubjectsPage> {
                               color: Colors.black,
                             ),
                           ),
-                          TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Hello')),
-                              );
-                            },
-                            child: const Text('Say Hello'),
-                          )
+                          // Optional: Keep or remove the "Say Hello" button if not needed
                         ],
                       ),
                     ),
@@ -150,6 +215,8 @@ class _SubjectsPageState extends State<SubjectsPage> {
                         delegate: SliverChildBuilderDelegate(
                           (context, i) {
                             final s = subjects[i];
+                            final isUploading = _uploadingStates[s.id] ?? false;
+                            
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 16),
                               child: SubjectCard(
@@ -161,6 +228,9 @@ class _SubjectsPageState extends State<SubjectsPage> {
                                     MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: s)),
                                   );
                                 },
+                                // Use the callback to trigger upload
+                                onStudyPlan: () => _studyPlan(s),
+                                isUploading: isUploading,
                               ),
                             );
                           },
@@ -193,18 +263,21 @@ class SubjectCard extends StatelessWidget {
     required this.subject,
     required this.onDelete,
     this.onTap,
+    this.onStudyPlan,
+    this.isUploading = false,
   });
 
   final Subject subject;
   final VoidCallback onDelete;
   final VoidCallback? onTap;
+  final VoidCallback? onStudyPlan;
+  final bool isUploading;
 
   // Colors from the palette
   static const deepBlue = Color(0xFF4C4EA1);
   static const yellow = Color(0xFFFACD16);
   static const pink = Color(0xFFEF3E5F);
   static const lightBlue = Color(0xFFCCD6E3);
-
 
 
   @override
@@ -331,21 +404,9 @@ class SubjectCard extends StatelessWidget {
             // Buttons
             Row(
               children: [
-                // Upload Button
-                Container(
-                  height: 48,
-                  width: 64,
-                  decoration: BoxDecoration(
-                    color: deepBlue,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.upload_rounded, color: Colors.white),
-                    onPressed: () {}, // No function
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Study Plan Button
+                // Upload Button / Study Plan
+                // The user replaced "Study Plan" button content with logic.
+                // We will clean this up to be the Study Plan button that triggers upload.
                 Expanded(
                   child: Container(
                     height: 48,
@@ -353,11 +414,14 @@ class SubjectCard extends StatelessWidget {
                       color: pink,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: TextButton(
-                      onPressed: () {}, // No function
-                      child: const Text(
-                        'Study Plan',
-                        style: TextStyle(
+                    child: TextButton.icon(
+                      onPressed: isUploading ? null : onStudyPlan,
+                      icon: isUploading 
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+                              : const Icon(Icons.upload_file, size: 18, color: Colors.white),
+                      label: Text(
+                        isUploading ? 'Generating...' : 'Generate Study Plan',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

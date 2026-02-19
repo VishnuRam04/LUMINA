@@ -33,6 +33,8 @@ class Quiz {
   final String title;
   final List<QuizQuestion> questions;
   final DateTime createdAt;
+  final double? lastScore;
+  final int attempts;
 
   Quiz({
     required this.id,
@@ -40,6 +42,8 @@ class Quiz {
     required this.title,
     required this.questions,
     required this.createdAt,
+    this.lastScore,
+    this.attempts = 0,
   });
 
   factory Quiz.fromJson(Map<String, dynamic> json) {
@@ -51,6 +55,8 @@ class Quiz {
           .map((q) => QuizQuestion.fromJson(q))
           .toList(),
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      lastScore: json['last_score'] != null ? (json['last_score'] as num).toDouble() : null,
+      attempts: json['attempts'] ?? 0,
     );
   }
 }

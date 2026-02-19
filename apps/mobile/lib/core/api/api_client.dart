@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ApiClient {
   // ---------------------------------------------------------------------------
@@ -17,6 +18,20 @@ class ApiClient {
     return 'http://0.0.0.0:8000';
   } 
 
+  Future<Map<String, String>> _getHeaders() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // Throwing might depend on use case, but generally API calls need auth now.
+      // Exception: Maybe login/register if they were API based, but they are Firebase.
+       throw Exception('User not authenticated');
+    }
+    final token = await user.getIdToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+  }
+
   Future<void> ingestFile({
     required String filePath, 
     required String subjectId, 
@@ -27,7 +42,7 @@ class ApiClient {
       print('Calling Ingest API: $url');
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'file_path': filePath,
           'subject_id': subjectId,
@@ -45,12 +60,40 @@ class ApiClient {
     }
   }
 
+  Future<void> studyPlan({
+    required String filePath, 
+    required String subjectId, 
+    required String filename
+  }) async {
+    final url = Uri.parse('$baseUrl/study-plan/generate');
+    try {
+      print('Calling Study Plan API: $url');
+      final response = await http.post(
+        url,
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          'file_path': filePath,
+          'subject_id': subjectId,
+          'filename': filename,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to generate study plan: ${response.body}');
+      }
+      print('Study plan generated successfully: ${response.body}');
+    } catch (e) {
+      print('API Error: $e');
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> chat(String query, {List<Map<String, String>> history = const []}) async {
     final url = Uri.parse('$baseUrl/chat');
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'query': query,
           'history': history,
@@ -73,20 +116,20 @@ class ApiClient {
     try {
       await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({'filename': filename}),
       );
     } catch (e) {
       print('API Delete Error: $e');
-      // Non-critical, so we can swallow or log
     }
   }
+  
   Future<void> reviewFlashcard(String cardId, int rating) async {
     final url = Uri.parse('$baseUrl/flashcards/review');
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'card_id': cardId,
           'rating': rating,
@@ -106,7 +149,7 @@ class ApiClient {
      try {
       await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'subject_id': subjectId,
           'text_content': text,
@@ -118,12 +161,13 @@ class ApiClient {
       rethrow;
     }
   }
+  
   Future<void> createFlashcard(String subjectId, String front, String back, {String? fileId}) async {
     final url = Uri.parse('$baseUrl/flashcards/create');
     try {
       await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'subject_id': subjectId,
           'file_id': fileId,
@@ -136,12 +180,13 @@ class ApiClient {
       rethrow;
     }
   }
+  
   Future<Map<String, dynamic>> generateQuiz(String subjectId, List<String> fileIds, {int count = 10, String difficulty = "Medium"}) async {
     final url = Uri.parse('$baseUrl/quiz/generate');
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'subject_id': subjectId,
           'file_ids': fileIds,
@@ -165,7 +210,7 @@ class ApiClient {
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'question': question,
           'user_answer': userAnswer,
@@ -179,10 +224,14 @@ class ApiClient {
       rethrow;
     }
   }
+  
   Future<List<dynamic>> getQuizzes(String subjectId) async {
     final url = Uri.parse('$baseUrl/quiz/list/$subjectId');
     try {
-      final response = await http.get(url);
+      final response = await http.get(
+        url,
+        headers: await _getHeaders(),
+      );
       if (response.statusCode != 200) throw Exception('Failed to fetch quizzes');
       return jsonDecode(response.body) as List<dynamic>;
     } catch (e) {
@@ -194,10 +243,27 @@ class ApiClient {
   Future<void> deleteQuiz(String quizId) async {
     final url = Uri.parse('$baseUrl/quiz/delete/$quizId');
     try {
-      final response = await http.delete(url);
+      final response = await http.delete(
+        url,
+        headers: await _getHeaders(),
+      );
       if (response.statusCode != 200) {
         throw Exception('Failed to delete quiz: ${response.body}');
       }
+    } catch (e) {
+      print('API Error: $e');
+      rethrow;
+    }
+  }
+  Future<void> updateQuizScore(String quizId, double score) async {
+    final url = Uri.parse('$baseUrl/quiz/score/$quizId');
+    try {
+      final response = await http.post(
+        url,
+        headers: await _getHeaders(),
+        body: jsonEncode({'score': score}),
+      );
+      if (response.statusCode != 200) throw Exception('Failed to update score');
     } catch (e) {
       print('API Error: $e');
       rethrow;

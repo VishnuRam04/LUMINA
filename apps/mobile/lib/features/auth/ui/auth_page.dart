@@ -1,8 +1,12 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/main_scaffold.dart';
+import '../data/auth_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'register_page.dart';
 
 
 class AuthPage extends StatefulWidget {
@@ -124,7 +128,27 @@ class _AuthPageState extends State<AuthPage> {
                 width: 346,
                 height: 50,
                 child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  try {
+                    await AuthRepository().signIn(
+                      emailController.text.trim(),
+                      passwordController.text.trim(),
+                    );
+                    
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                         MaterialPageRoute(builder: (_) => const MainScaffold()),
+                         (route) => false,
+                      );
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(e.toString()),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
@@ -160,10 +184,11 @@ class _AuthPageState extends State<AuthPage> {
                     color: Color(0xFF4C4EA1), // darker color
                     fontWeight: FontWeight.w400,
                     ),
-                    // recognizer: TapGestureRecognizer()
-                    // ..onTap = () {
-                    //     // navigate to Register page later
-                    // },
+                    recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                    Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => RegisterPage()),
+                  );                    },
                 ),
                 ],
             ),
