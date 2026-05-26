@@ -6,7 +6,6 @@ pypdf
 langchain
 langchain-community
 langchain-google-genai
-chromadb
 PyMuPDF
 langchain-google-firestore
 langchain-text-splitters
