@@ -22,10 +22,12 @@ app.add_middleware(
 vector_store = None
 chat_service = None
 
+from app.core.config import settings
+
 @app.on_event("startup")
 async def startup_event():
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "serviceAccountKey.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.FIREBASE_CREDENTIALS_PATH
     
     init_firebase()
     global vector_store, chat_service
