@@ -1,28 +1,23 @@
-import 'dart:io';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ApiClient {
-  // ---------------------------------------------------------------------------
-  // ⚠️ IMPORTANT FOR PHYSICAL DEVICE:
-  // 1. Run "ifconfig" in terminal to find your IP (e.g., 192.168.1.10).
-  // 2. Replace "127.0.0.1" below with that IP if running on a real phone.
-  // 3. Ensure your phone and computer are on the SAME Wi-Fi.
-  // ---------------------------------------------------------------------------
   static String get baseUrl {
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000'; // Android Emulator
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000';
+    } else if (Platform.isAndroid) {
+      return 'http://10.0.2.2:8000'; 
     }
-    // For Physical Device: CHANGE THIS to your LAN IP!
-    return 'http://0.0.0.0:8000';
+    return 'http://127.0.0.1:8000';
   } 
 
   Future<Map<String, String>> _getHeaders() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      // Throwing might depend on use case, but generally API calls need auth now.
-      // Exception: Maybe login/register if they were API based, but they are Firebase.
+
        throw Exception('User not authenticated');
     }
     final token = await user.getIdToken();
@@ -60,10 +55,11 @@ class ApiClient {
     }
   }
 
-  Future<void> studyPlan({
+  Future<Map<String, dynamic>> studyPlan({
     required String filePath, 
     required String subjectId, 
-    required String filename
+    required String filename,
+    String? section,
   }) async {
     final url = Uri.parse('$baseUrl/study-plan/generate');
     try {
@@ -75,6 +71,7 @@ class ApiClient {
           'file_path': filePath,
           'subject_id': subjectId,
           'filename': filename,
+          if (section != null && section.isNotEmpty) 'section': section,
         }),
       );
 
@@ -82,13 +79,14 @@ class ApiClient {
         throw Exception('Failed to generate study plan: ${response.body}');
       }
       print('Study plan generated successfully: ${response.body}');
+      return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
       print('API Error: $e');
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> chat(String query, {List<Map<String, String>> history = const []}) async {
+  Future<Map<String, dynamic>> chat(String query, {List<Map<String, String>> history = const [], String? imageBase64}) async {
     final url = Uri.parse('$baseUrl/chat');
     try {
       final response = await http.post(
@@ -97,6 +95,7 @@ class ApiClient {
         body: jsonEncode({
           'query': query,
           'history': history,
+          if (imageBase64 != null) 'image_base64': imageBase64,
         }),
       );
 
@@ -181,7 +180,7 @@ class ApiClient {
     }
   }
   
-  Future<Map<String, dynamic>> generateQuiz(String subjectId, List<String> fileIds, {int count = 10, String difficulty = "Medium"}) async {
+  Future<Map<String, dynamic>> generateQuiz(String subjectId, List<String> fileIds, {int count = 10, List<String> bloomLevels = const []}) async {
     final url = Uri.parse('$baseUrl/quiz/generate');
     try {
       final response = await http.post(
@@ -191,7 +190,7 @@ class ApiClient {
           'subject_id': subjectId,
           'file_ids': fileIds,
           'count': count,
-          'difficulty': difficulty
+          'bloom_levels': bloomLevels
         }),
       );
       
@@ -264,6 +263,22 @@ class ApiClient {
         body: jsonEncode({'score': score}),
       );
       if (response.statusCode != 200) throw Exception('Failed to update score');
+    } catch (e) {
+      print('API Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteUser(String uid) async {
+    final url = Uri.parse('$baseUrl/admin/users/$uid');
+    try {
+      final response = await http.delete(
+        url,
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode != 200) {
+        throw Exception('Failed to delete user: ${response.body}');
+      }
     } catch (e) {
       print('API Error: $e');
       rethrow;

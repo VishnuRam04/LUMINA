@@ -6,8 +6,9 @@ import 'quiz_page.dart';
 class QuizCreationDialog extends StatefulWidget {
   final String subjectId;
   final List<SubjectFile> files;
+  final List<String> bloomLevels;
 
-  const QuizCreationDialog({super.key, required this.subjectId, required this.files});
+  const QuizCreationDialog({super.key, required this.subjectId, required this.files, this.bloomLevels = const []});
 
   @override
   State<QuizCreationDialog> createState() => _QuizCreationDialogState();
@@ -15,16 +16,14 @@ class QuizCreationDialog extends StatefulWidget {
 
 class _QuizCreationDialogState extends State<QuizCreationDialog> {
   final Set<String> _selectedFiles = {};
-  String _difficulty = "Medium";
   bool _isGenerating = false;
   final QuizRepository _repo = QuizRepository();
 
   @override
   void initState() {
     super.initState();
-    // Default select all? Or none. Let's select all by default for convenience.
     for (var f in widget.files) {
-      _selectedFiles.add(f.name); // Using name as ID for now based on implementation
+      _selectedFiles.add(f.name); 
     }
   }
 
@@ -39,12 +38,12 @@ class _QuizCreationDialogState extends State<QuizCreationDialog> {
       final quiz = await _repo.generateQuiz(
         widget.subjectId, 
         _selectedFiles.toList(), 
-        count: 5, // Keeping it small for demo speed
-        difficulty: _difficulty
+        count: 5, 
+        bloomLevels: widget.bloomLevels
       );
       
       if (mounted) {
-        Navigator.pop(context); // Close dialog
+        Navigator.pop(context); 
         Navigator.push(context, MaterialPageRoute(builder: (_) => QuizPage(quiz: quiz)));
       }
     } catch (e) {
@@ -84,15 +83,6 @@ class _QuizCreationDialogState extends State<QuizCreationDialog> {
                 activeColor: const Color(0xFF4C4EA1),
               );
             }),
-            
-            const SizedBox(height: 16),
-            const Text("Difficulty:", style: TextStyle(fontWeight: FontWeight.bold)),
-            DropdownButton<String>(
-              value: _difficulty,
-              isExpanded: true,
-              items: ["Easy", "Medium", "Hard"].map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-              onChanged: (val) => setState(() => _difficulty = val!),
-            )
           ],
         ),
       ),

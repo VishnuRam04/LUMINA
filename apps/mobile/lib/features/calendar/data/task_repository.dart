@@ -61,4 +61,15 @@ class TaskRepository {
   Future<void> deleteTask({required String uid, required String taskId}) async {
     await _tasksRef(uid).doc(taskId).delete();
   }
+
+  Future<void> deleteTasksBySubjectId(String uid, String subjectId) async {
+    final snapshot = await _tasksRef(uid).where('subject_id', isEqualTo: subjectId).get();
+    if (snapshot.docs.isNotEmpty) {
+      final batch = _db.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+  }
 }

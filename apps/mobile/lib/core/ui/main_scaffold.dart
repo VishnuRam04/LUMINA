@@ -15,9 +15,9 @@ class MainScaffold extends StatefulWidget {
 }
 
 class _MainScaffoldState extends State<MainScaffold> {
-  int _currentIndex = 0; // Default to Home
+  int _currentIndex = 0; 
 
-  // Pages getter to access setState or context if needed
+
   List<Widget> get _pages => [
     HomePage(onAskLuminaPressed: () => setState(() => _currentIndex = 2)),
     const CalendarPage(),
@@ -66,8 +66,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget _buildNavItem(int index, IconData iconOutlined, IconData iconFilled, String label) {
     final isSelected = _currentIndex == index;
     
-    // If selected, we wrap everything in the blue container.
-    // If not selected, just the icon and text directly.
+
     
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
@@ -104,9 +103,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   }
 
   Widget _buildCenterItem(int index) {
-    // The center item 'Lumina' with the star icon
-    // For now we'll simulate the star with a custom icon or image.
-    // Since we don't have the asset, I'll use a combination of icons or just a colored star.
+
     final isSelected = _currentIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
@@ -116,8 +113,8 @@ class _MainScaffoldState extends State<MainScaffold> {
           Container(
              padding: const EdgeInsets.all(10),
              child: const Icon(
-               Icons.star, // Placeholder for the actual Lumina Logo
-               color: AppColors.yellow, // Using yellow as base, or maybe multicoloured gradient?
+               Icons.star, 
+               color: AppColors.yellow, 
                size: 28,
              ),
           ),

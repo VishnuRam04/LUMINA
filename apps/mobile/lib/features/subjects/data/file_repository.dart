@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../domain/subject_file.dart';
@@ -9,8 +10,10 @@ class FileRepository {
 
   FileRepository(this._db, this._storage);
 
-  // Firestore reference for file metadata
-  CollectionReference<Map<String, dynamic>> _filesRef(String uid, String subjectId) {
+  CollectionReference<Map<String, dynamic>> _filesRef(
+    String uid,
+    String subjectId,
+  ) {
     return _db
         .collection('users')
         .doc(uid)
@@ -19,48 +22,54 @@ class FileRepository {
         .collection('files');
   }
 
-  // Storage reference
   Reference _storageRef(String uid, String subjectId, String filename) {
-    return _storage.ref().child('users/$uid/subjects/$subjectId/files/$filename');
+    return _storage.ref().child(
+      'users/$uid/subjects/$subjectId/files/$filename',
+    );
   }
 
   Stream<List<SubjectFile>> watchFiles(String uid, String subjectId) {
     return _filesRef(uid, subjectId)
         .orderBy('uploaded_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => SubjectFile.fromMap(d.id, d.data()))
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => SubjectFile.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
   Future<void> uploadFile({
     required String uid,
     required String subjectId,
-    required File file,
+    File? file,
+    Uint8List? bytes,
     required String filename,
+    bool saveMetadata = true,
   }) async {
-    print('Starting upload for $filename at path ${file.path}');
-    if (!file.existsSync()) {
-      print('ERROR: File does not exist at path');
-      throw Exception('File does not exist locally');
-    }
-    
-    // 1. Upload to Firebase Storage
+    print('Starting upload for $filename');
+
     try {
-      // FIX: Sanitize filename to avoid weird character issues
       final safeFilename = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       print('Sanitized filename: $safeFilename (Original: $filename)');
 
       final ref = _storageRef(uid, subjectId, safeFilename);
       print('Storage Reference: ${ref.fullPath}');
-      
-      print('Reading file bytes...');
-      final bytes = await file.readAsBytes();
-      print('File bytes read: ${bytes.length} bytes');
 
-      final task = ref.putData(bytes);
-      
-      // Wait for completion
+      UploadTask task;
+      if (bytes != null) {
+        print('Uploading from bytes (${bytes.length} bytes)');
+        task = ref.putData(bytes);
+      } else if (file != null) {
+        if (!file.existsSync()) {
+          throw Exception('File does not exist locally');
+        }
+        print('Uploading from dart:io File');
+        task = ref.putFile(file);
+      } else {
+        throw Exception('Must provide either file or bytes');
+      }
+
       final snapshot = await task.whenComplete(() {});
       print('Upload whenComplete. State: ${snapshot.state}');
 
@@ -69,20 +78,20 @@ class FileRepository {
       }
 
       print('Getting download URL...');
-      // Use the snapshot's ref to be 100% sure
       final url = await snapshot.ref.getDownloadURL();
       print('Download URL obtained: $url');
       final size = snapshot.totalBytes;
 
-      // 2. Save metadata to Firestore
-      print('Saving metadata to Firestore...');
-      await _filesRef(uid, subjectId).add({
-        'name': filename,
-        'url': url,
-        'size_bytes': size,
-        'uploaded_at': FieldValue.serverTimestamp(),
-      });
-      print('Metadata saved.');
+      if (saveMetadata) {
+        print('Saving metadata to Firestore...');
+        await _filesRef(uid, subjectId).add({
+          'name': filename,
+          'url': url,
+          'size_bytes': size,
+          'uploaded_at': FieldValue.serverTimestamp(),
+        });
+        print('Metadata saved.');
+      }
     } catch (e, stack) {
       print('ERROR during upload: $e');
       print(stack);
@@ -101,34 +110,50 @@ class FileRepository {
 
     // 2. Delete from Storage
     try {
-      await _storageRef(uid, subjectId, filename).delete();
+      final safeFilename = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      await _storageRef(uid, subjectId, safeFilename).delete();
     } catch (e) {
       // Ignore if file doesn't exist in storage
       print('Error deleting file from storage: $e');
     }
   }
+
   Future<List<String>> getAllUserFiles(String uid) async {
     try {
       // 1. Get all subjects
-      final subjectsSnap = await _db.collection('users').doc(uid).collection('subjects').get();
-      
+      final subjectsSnap = await _db
+          .collection('users')
+          .doc(uid)
+          .collection('subjects')
+          .get();
+
       List<String> allFilenames = [];
-      
+
       // 2. For each subject, get files
       // Using Future.wait for parallel execution
-      await Future.wait(subjectsSnap.docs.map((subjectDoc) async {
-         final filesSnap = await subjectDoc.reference.collection('files').get();
-         allFilenames.addAll(filesSnap.docs.map((d) => d.data()['name'] as String));
-      }));
-      
+      await Future.wait(
+        subjectsSnap.docs.map((subjectDoc) async {
+          final filesSnap = await subjectDoc.reference
+              .collection('files')
+              .get();
+          allFilenames.addAll(
+            filesSnap.docs.map((d) => d.data()['name'] as String),
+          );
+        }),
+      );
+
       return allFilenames;
     } catch (e) {
       print('Error fetching all user files: $e');
       return [];
     }
   }
+
   Future<List<SubjectFile>> getFiles(String uid, String subjectId) async {
-    final snap = await _filesRef(uid, subjectId).orderBy('uploaded_at', descending: true).get();
+    final snap = await _filesRef(
+      uid,
+      subjectId,
+    ).orderBy('uploaded_at', descending: true).get();
     return snap.docs.map((d) => SubjectFile.fromMap(d.id, d.data())).toList();
   }
 }

@@ -31,12 +31,9 @@ class _FlashcardStudyPageState extends State<FlashcardStudyPage> {
     try {
       final card = _studyCards[_currentIndex];
       
-      // API Update (optimistic)
       await _repo.reviewCard(card.id, rating);
       
-      // Logic: If Again/Hard, re-queue this card for this session
       if (rating < 4) {
-        // Re-add to end of list to see it again
         setState(() {
           _studyCards.add(card);
         });

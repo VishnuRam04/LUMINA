@@ -3,6 +3,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_google_firestore import FirestoreVectorStore
 from app.core.config import settings
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter, And
 import os
 
 class CustomGoogleGenerativeAIEmbeddings(GoogleGenerativeAIEmbeddings):
@@ -11,7 +12,6 @@ class CustomGoogleGenerativeAIEmbeddings(GoogleGenerativeAIEmbeddings):
         return super().embed_documents(texts, task_type=task_type, output_dimensionality=768)
 
     def embed_query(self, text: str, task_type: str = None) -> list[float]:
-        # Force 768 dimensions
         return super().embed_query(text, task_type=task_type, output_dimensionality=768)
 
 class VectorStoreService:
@@ -19,17 +19,14 @@ class VectorStoreService:
         if not settings.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY is missing in environment variables")
             
-        # Use our Custom class that forces 768 dims
         self.embeddings = CustomGoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-001",
             google_api_key=settings.GOOGLE_API_KEY
         )
         
-        # Initialize Firestore Client
         self.db = firestore.Client()
         self.collection_name = "vector_store_data"
 
-        # Initialize FirestoreVectorStore
         self.vector_db = FirestoreVectorStore(
             client=self.db,
             collection=self.collection_name,
@@ -48,8 +45,7 @@ class VectorStoreService:
         chunks = self.split_text(text)
         print(f"Splitting into {len(chunks)} chunks...")
         
-        # Add chunks to vector store
-        # Metadata is replicated for each chunk (e.g., subject_id, file_name)
+
         metadatas = [metadata for _ in chunks]
         
         self.vector_db.add_texts(
@@ -59,13 +55,9 @@ class VectorStoreService:
         print("Documents added to Vector DB.")
 
     def delete_document(self, uid: str, filename: str):
-        """Removes all chunks associated with a specific filename for a specific user."""
         print(f"Deleting document: {filename} for user: {uid}")
         try:
-           # Firestore Vector Store doesn't expose a clean 'delete by metadata' yet via LangChain
-           # So we use standard Firestore query.
-           # The document chunks are stored in 'self.collection_name'.
-           # LangChain stores metadata in the 'metadata' map field.
+
            
            docs = self.db.collection(self.collection_name)\
                     .where("metadata.user_id", "==", uid)\
@@ -78,42 +70,53 @@ class VectorStoreService:
            for doc in docs:
                batch.delete(doc.reference)
                deleted_count += 1
-               if deleted_count % 400 == 0: # Firestore batch limit is 500
+               if deleted_count % 400 == 0:
                    batch.commit()
                    batch = self.db.batch()
            
            if deleted_count > 0:
-               batch.commit() # Commit remaining
+               batch.commit() 
                
            print(f"Successfully deleted {deleted_count} chunks for {filename}")
         except Exception as e:
            print(f"Error deleting from Vector DB: {e}")
 
     def similarity_search(self, query: str, user_id: str, subject_id: str = None, k=10):
-        # Filter by user_id AND subject_id (if provided)
-        # LangChain Firestore VectorStore supports dict filters for equality matches.
+        query_embedding = self.embeddings.embed_query(query)
+        import numpy as np
+        from langchain_core.documents import Document
         
-        filter_dict = {"user_id": user_id}
+        docs_ref = self.db.collection(self.collection_name).where(filter=FieldFilter("metadata.user_id", "==", user_id))
         if subject_id:
-            filter_dict["subject_id"] = subject_id
+            docs_ref = docs_ref.where(filter=FieldFilter("metadata.subject_id", "==", subject_id))
             
-        return self.vector_db.similarity_search(
-            query,
-            k=k,
-            filter=filter_dict
-        )
+        docs = docs_ref.stream()
+        
+        scored_docs = []
+        for doc in docs:
+            data = doc.to_dict()
+            if "embedding" in data and "content" in data:
+                emb = data["embedding"]
+                score = np.dot(query_embedding, emb) / (np.linalg.norm(query_embedding) * np.linalg.norm(emb))
+                scored_docs.append((score, data))
+                
+        scored_docs.sort(key=lambda x: x[0], reverse=True)
+        
+        results = []
+        for score, data in scored_docs[:k]:
+            results.append(Document(page_content=data["content"], metadata=data.get("metadata", {})))
+            
+        return results
     
     def similarity_search_with_retry(self, query: str, user_id: str, subject_id: str = None, k=10):
         try:
             return self.similarity_search(query, user_id, subject_id, k)
         except Exception as e:
-            # Check if it's a gRPC error with the link
             error_str = str(e)
             if "https://console.firebase.google.com" in error_str:
                 print("\n" + "="*80)
                 print("ACTION REQUIRED: CREATE VECTOR INDEX")
                 print("Click this link to create the missing index:")
-                # Extract link (simple heuristic)
                 start = error_str.find("https://")
                 end = error_str.find(" ", start)
                 if end == -1: end = len(error_str)
@@ -123,10 +126,11 @@ class VectorStoreService:
             raise e
     
     def as_retriever(self, user_id: str, subject_id: str = None):
-        filter_dict = {"user_id": user_id}
+        filters_list = [FieldFilter("metadata.user_id", "==", user_id)]
         if subject_id:
-            filter_dict["subject_id"] = subject_id
+            filters_list.append(FieldFilter("metadata.subject_id", "==", subject_id))
             
+        comp_filter = And(filters=filters_list)
         return self.vector_db.as_retriever(
-            search_kwargs={"filter": filter_dict}
+            search_kwargs={"filters": comp_filter}
         )

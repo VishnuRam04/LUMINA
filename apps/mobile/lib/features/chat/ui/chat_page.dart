@@ -3,7 +3,12 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
 import '../../subjects/data/file_repository.dart';
+import '../../calendar/data/event_repository.dart';
+import '../../../../core/notifications/notification_service.dart';
 import '../../../../core/api/api_client.dart';
 
 class ChatPage extends StatefulWidget {
@@ -16,7 +21,6 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // STATIC to persist across page switches
   static final List<Map<String, String>> _messages = []; 
   bool _isLoading = false;
 
@@ -24,13 +28,28 @@ class _ChatPageState extends State<ChatPage> {
   List<String> _filteredFiles = [];
   bool _showSuggestions = false;
 
+  File? _selectedImage;
+  String? _imageBase64;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _selectedImage = File(picked.path);
+        _imageBase64 = base64Encode(bytes);
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _fetchFiles();
     _controller.addListener(_onTextChanged);
     
-    // Scroll to bottom if messages exist
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_messages.isNotEmpty && _scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
@@ -74,7 +93,6 @@ class _ChatPageState extends State<ChatPage> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Background Elements (corner shapes matching design)
           Positioned(
             top: 0,
             left: 0,
@@ -87,10 +105,8 @@ class _ChatPageState extends State<ChatPage> {
           SafeArea(
             child: Column(
               children: [
-                // Header
                 _buildHeader(),
                 
-                // Chat Area
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
@@ -98,7 +114,7 @@ class _ChatPageState extends State<ChatPage> {
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
-                      return _buildChatBubble(msg['role'] == 'user', msg['content']!);
+                      return _buildChatBubble(msg['role'] == 'user', msg);
                     },
                   ),
                 ),
@@ -130,8 +146,7 @@ class _ChatPageState extends State<ChatPage> {
                             _controller.text = newText;
                             _controller.selection = TextSelection.fromPosition(TextPosition(offset: newText.length));
                             setState(() => _showSuggestions = false);
-                            // Optional: Automatically send? User might want to add more instructions.
-                            // Let's keep it in input for user to review.
+
                           },
                         );
                       },
@@ -144,7 +159,6 @@ class _ChatPageState extends State<ChatPage> {
                      child: CircularProgressIndicator(),
                    ),
 
-                // Input Area
                 _buildInputArea(),
               ],
             ),
@@ -164,14 +178,13 @@ class _ChatPageState extends State<ChatPage> {
         ),
         const SizedBox(height: 20),
         
-        // "Hi I'm LUMINA" Card
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF4C4EA1), width: 2), // Blue/Purple border
+            border: Border.all(color: const Color(0xFF4C4EA1), width: 2), 
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF4C4EA1).withOpacity(0.2),
@@ -182,7 +195,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
           child: Row(
             children: [
-               // Lumina Star Icon
+              
                Container(
                  width: 60, height: 60,
                  decoration: BoxDecoration(
@@ -202,7 +215,6 @@ class _ChatPageState extends State<ChatPage> {
                    ],
                  ),
                ),
-               // Clear Chat Button
                IconButton(
                  icon: const Icon(Icons.delete_outline, color: Colors.red),
                  onPressed: () {
@@ -224,7 +236,6 @@ class _ChatPageState extends State<ChatPage> {
         
         const SizedBox(height: 16),
         
-        // Suggestion Chips
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -232,9 +243,10 @@ class _ChatPageState extends State<ChatPage> {
             children: [
               _buildChip('Summarise', Colors.amber),
               const SizedBox(width: 12),
-              _buildChip('Make a Quiz', const Color(0xFF4C4EA1)), // Blue/Purple
+              _buildChip('Make a Quiz', const Color(0xFF4C4EA1)), 
               const SizedBox(width: 12),
-              _buildChip('Explanation ?', const Color(0xFFEF3E5F)), // Red
+              _buildChip('Explanation ?', const Color(0xFFEF3E5F)),
+
             ],
           ),
         ),
@@ -243,23 +255,15 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildChip(String label, Color color) {
-    return ActionChip(
+    return Chip(
       label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       backgroundColor: color,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide.none),
-      onPressed: () {
-        if (label == 'Summarise') {
-          _controller.text = '@Summarise ';
-          _controller.selection = TextSelection.fromPosition(TextPosition(offset: _controller.text.length));
-          // Listener will pick this up and show suggestions
-        } else {
-          _handleSend(label);
-        }
-      },
     );
   }
 
-  Widget _buildChatBubble(bool isUser, String message) {
+  Widget _buildChatBubble(bool isUser, Map<String, String> msg) {
+    String message = msg['content']!;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -267,7 +271,7 @@ class _ChatPageState extends State<ChatPage> {
         padding: const EdgeInsets.all(16),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
         decoration: BoxDecoration(
-          color: isUser ? Colors.white : const Color(0xFF4C4EA1), // White for user, Purple for AI
+          color: isUser ? Colors.white : const Color(0xFF4C4EA1), 
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -308,10 +312,68 @@ class _ChatPageState extends State<ChatPage> {
                 h3: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
+            if (!isUser && msg.containsKey('event_data')) ...[
+               const SizedBox(height: 12),
+               _buildEventCard(msg['event_data']!),
+            ]
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildEventCard(String eventJson) {
+     Map<String, dynamic> data = jsonDecode(eventJson);
+     String title = data['title'] ?? 'New Event';
+     String dateStr = data['date'] ?? '';
+     return Container(
+       padding: const EdgeInsets.all(12),
+       decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(12)),
+       child: Column(
+         crossAxisAlignment: CrossAxisAlignment.start,
+         children: [
+           Row(children: [const Icon(Icons.event, color: Color(0xFF4C4EA1)), const SizedBox(width:8), Expanded(child: Text(title, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))]),
+           const SizedBox(height: 4),
+           Text(dateStr, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+           const SizedBox(height: 8),
+           SizedBox(width: double.infinity, height: 32, child: ElevatedButton(
+             style: ElevatedButton.styleFrom(
+               backgroundColor: const Color(0xFF4C4EA1),
+               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+             ),
+             onPressed: () async {
+                try {
+                  DateTime dt = DateTime.parse(dateStr);
+                  final uid = FirebaseAuth.instance.currentUser?.uid;
+                  if (uid != null) {
+                    await EventRepository(FirebaseFirestore.instance).addEvent(
+                      uid: uid,
+                      title: title,
+                      location: '',
+                      startTime: dt,
+                      endTime: dt.add(const Duration(hours: 1)),
+                      subjectId: null,
+                      isRecurring: false
+                    );
+                    DateTime notifyTime = dt.subtract(const Duration(minutes: 15));
+                    if (notifyTime.isBefore(DateTime.now())) notifyTime = DateTime.now().add(const Duration(seconds: 10));
+                    NotificationService().scheduleNotification(
+                       id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+                       title: 'Upcoming Event: $title',
+                       body: 'Event starting soon!',
+                       scheduledTime: notifyTime, 
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added $title to Calendar!')));
+                  }
+                } catch(e) {
+                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error adding event: $e')));
+                }
+             },
+             child: const Text('Add to Calendar', style: TextStyle(fontSize: 12, color: Colors.white)),
+           ))
+         ]
+       )
+     );
   }
 
   Widget _buildInputArea() {
@@ -323,53 +385,65 @@ class _ChatPageState extends State<ChatPage> {
           BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))
         ]
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFFE0E0E0),
-            ),
-            padding: const EdgeInsets.all(10),
-            child: const Icon(Icons.add, color: Colors.black54),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.grey.shade300),
+          if (_selectedImage != null)
+             Stack(children: [
+               Container(margin: const EdgeInsets.only(bottom: 8), height: 60, width: 60, child: Image.file(_selectedImage!, fit: BoxFit.cover)),
+               Positioned(right: 0, top: 0, child: InkWell(onTap: () => setState((){_selectedImage = null; _imageBase64 = null;}), child: Container(color: Colors.white70, child: const Icon(Icons.close, size: 16))))
+             ]),
+          Row(
+            children: [
+              InkWell(
+                onTap: _pickImage,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFFE0E0E0),
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: const Icon(Icons.camera_alt, color: Colors.black54),
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration: const InputDecoration(
-                        hintText: 'Ask anything',
-                        border: InputBorder.none,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          decoration: const InputDecoration(
+                            hintText: 'Ask anything',
+                            border: InputBorder.none,
+                          ),
+                          onSubmitted: (val) => _handleSend(val),
+                        ),
                       ),
-                      onSubmitted: (val) => _handleSend(val),
-                    ),
+                      InkWell(
+                        onTap: () => _handleSend(_controller.text),
+
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle),
+                          child: const Icon(Icons.send, color: Colors.white, size: 16)
+                        )
+                      ),
+                    ],
                   ),
-                  InkWell(onTap: () {}, child: const Icon(Icons.mic, color: Colors.black54)),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () => _handleSend(_controller.text),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(color: Colors.grey, shape: BoxShape.circle),
-                        child: const Icon(Icons.graphic_eq, color: Colors.white, size: 16)
-                    )
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ],
-      ),
+      )
     );
   }
 
@@ -382,7 +456,6 @@ class _ChatPageState extends State<ChatPage> {
       _isLoading = true;
     });
     
-    // Scroll to bottom
     Future.delayed(const Duration(milliseconds: 100), () {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent, 
@@ -392,26 +465,33 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     try {
-      // Get last 6 messages as history (exclude current user message which is appended locally but not yet in loop if we wanted)
-      // Actually, we just added the new user message to _messages.
-      // So let's take everything valid.
+    
       final history = _messages
           .where((m) => m['role'] != null && m['content'] != null)
           .map((m) => {'role': m['role']!, 'content': m['content']!})
           .toList();
           
-      // Remove the last message (which is the current query we just added) to avoid duplication if the backend appends it, 
-      // BUT for simplicity, let's just pass the previous history.
-      // Actually, standard practice: History = [Old Msg 1, Old Msg 2]. Query = "New Msg".
+
       if (history.isNotEmpty) {
           history.removeLast(); 
       }
 
-      final response = await ApiClient().chat(text, history: history);
+      final response = await ApiClient().chat(text, history: history, imageBase64: _imageBase64);
       final answer = response['answer']?.toString() ?? "I didn't get an answer.";
       
+      Map<String, dynamic>? eventData;
+      if (response['event_data'] != null) {
+        eventData = response['event_data'] as Map<String, dynamic>;
+      }
+      
       setState(() {
-        _messages.add({'role': 'gemini', 'content': answer});
+        _messages.add({
+          'role': 'gemini', 
+          'content': answer, 
+          if (eventData != null) 'event_data': jsonEncode(eventData)
+        });
+        _selectedImage = null;
+        _imageBase64 = null;
       });
     } catch (e) {
       setState(() {

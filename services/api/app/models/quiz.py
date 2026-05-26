@@ -29,8 +29,8 @@ class Quiz(BaseModel):
 class GenerateQuizRequest(BaseModel):
     subject_id: str
     file_ids: List[str] # Selected chapters
-    difficulty: str = "Medium"
     count: int = 10
+    bloom_levels: List[str] = []
 
 class GradeOpenEndedRequest(BaseModel):
     question: str

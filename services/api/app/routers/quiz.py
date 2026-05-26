@@ -20,30 +20,27 @@ async def generate_quiz(req: GenerateQuizRequest, user: dict = Depends(get_curre
     service = get_service()
     uid = user['uid']
     
-    # Generate Questions
     questions = await service.generate_quiz(
+        uid=user['uid'],
         subject_id=req.subject_id,
         file_ids=req.file_ids,
         count=req.count,
-        difficulty=req.difficulty
+        bloom_levels=req.bloom_levels
     )
     
     if not questions:
         raise HTTPException(status_code=500, detail="Failed to generate quiz questions")
     
-    # Create Quiz Object
     quiz = Quiz(
         id=str(uuid.uuid4()),
         subject_id=req.subject_id,
-        title=f"Quiz - {datetime.now().strftime('%b %d, %H:%M')}", # Default title
+        title=f"Quiz - {datetime.now().strftime('%b %d, %H:%M')}", 
         file_ids=req.file_ids,
         questions=questions,
         created_at=datetime.now()
     )
     
-    # Save to Firestore (Scoped to User)
     db = service.vector_store.db
-    # Path: users/{uid}/quizzes/{quiz_id}
     db.collection("users").document(uid).collection("quizzes").document(quiz.id).set(quiz.model_dump())
     
     return quiz

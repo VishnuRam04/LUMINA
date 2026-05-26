@@ -24,6 +24,7 @@ class EventRepository {
     required String location,
     required String? subjectId,
     required bool isRecurring,
+    String? colorHex,
   }) async {
     await _eventsRef(uid).add({
       'title': title.trim(),
@@ -32,11 +33,47 @@ class EventRepository {
       'location': location.trim(),
       'subject_id': subjectId,
       'is_recurring': isRecurring,
+      if (colorHex != null) 'color_hex': colorHex,
       'created_at': FieldValue.serverTimestamp(),
     });
   }
 
   Future<void> deleteEvent({required String uid, required String eventId}) async {
     await _eventsRef(uid).doc(eventId).delete();
+  }
+
+  Future<void> updateEvent({
+    required String uid,
+    required String eventId,
+    required String title,
+    required DateTime startTime,
+    required DateTime endTime,
+    required String location,
+    required String? subjectId,
+    required bool isRecurring,
+    String? colorHex,
+  }) async {
+    final Map<String, dynamic> data = {
+      'title': title.trim(),
+      'start_time': Timestamp.fromDate(startTime),
+      'end_time': Timestamp.fromDate(endTime),
+      'location': location.trim(),
+      'subject_id': subjectId,
+      'is_recurring': isRecurring,
+      'updated_at': FieldValue.serverTimestamp(),
+    };
+    if (colorHex != null) data['color_hex'] = colorHex;
+    await _eventsRef(uid).doc(eventId).update(data);
+  }
+
+  Future<void> deleteEventsBySubjectId(String uid, String subjectId) async {
+    final snapshot = await _eventsRef(uid).where('subject_id', isEqualTo: subjectId).get();
+    if (snapshot.docs.isNotEmpty) {
+      final batch = _db.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
   }
 }

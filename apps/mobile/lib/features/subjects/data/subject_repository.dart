@@ -29,11 +29,15 @@ class SubjectRepository {
     required String subjectName,
     required String subjectCode,
     required String subjectLecturer,
+    String? colorHex,
+    String? section,
   }) async {
     await _subjectsRef(uid).add({
       'subject_name': subjectName.trim(),
       'subject_code': subjectCode.trim(),
       'subject_lecturer': subjectLecturer.trim(),
+      if (colorHex != null) 'color_hex': colorHex,
+      if (section != null) 'section': section.trim(),
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
     });
@@ -49,6 +53,19 @@ class SubjectRepository {
     await _subjectsRef(uid).doc(subjectId).update({
       'subject_name': subjectName.trim(),
       'subject_code': subjectCode.trim(),
+      'updated_at': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateSubjectStudyPlanData({
+    required String uid,
+    required String subjectId,
+    required bool hasStudyPlan,
+    required List<String> bloomLevels,
+  }) async {
+    await _subjectsRef(uid).doc(subjectId).update({
+      'has_study_plan': hasStudyPlan,
+      'bloom_levels': bloomLevels,
       'updated_at': FieldValue.serverTimestamp(),
     });
   }

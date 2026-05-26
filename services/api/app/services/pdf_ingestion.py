@@ -19,15 +19,13 @@ class PDFIngestionService:
 
     @staticmethod
     def get_vision_description(image_bytes: bytes) -> str:
-        """Sends image to Gemini Vision for description."""
         try:
             llm = ChatGoogleGenerativeAI(
                 model="gemini-2.0-flash",
                 google_api_key=settings.GOOGLE_API_KEY,
-                temperature=0.2 # Low temp for factual description
+                temperature=0.2 
             )
             
-            # Correctly handle Base64 encoding
             import base64
             b64_image = base64.b64encode(image_bytes).decode('utf-8')
             
@@ -46,12 +44,7 @@ class PDFIngestionService:
 
     @classmethod
     def process_pdf_stream(cls, pdf_stream: io.BytesIO) -> str:
-        """
-        Iterates through PDF pages.
-        - Tries text extraction.
-        - If text is sparse (< 50 chars), assumes Image/Scan.
-        - Uses Gemini Vision for images.
-        """
+
         doc = fitz.open(stream=pdf_stream, filetype="pdf")
         full_text = ""
         
@@ -60,15 +53,12 @@ class PDFIngestionService:
         for i, page in enumerate(doc):
             print(f"--- Page {i+1} ---")
             
-            # 1. Try standard text extraction
             text = page.get_text()
             
-            # 2. Heuristic check
             if len(text.strip()) < 50:
                 print("  -> Low text detected. Using Gemini Vision...")
                 try:
-                    # Render page to image
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom for better quality
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) 
                     img_bytes = pix.tobytes("jpeg")
                     
                     description = cls.get_vision_description(img_bytes)

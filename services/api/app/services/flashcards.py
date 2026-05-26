@@ -10,9 +10,9 @@ class FlashcardService:
     def __init__(self):
         self.db = firestore.Client()
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", # Or gemini-1.5-flash
+            model="gemini-2.0-flash", 
             google_api_key=settings.GOOGLE_API_KEY,
-            temperature=0.3, # Creative but structured
+            temperature=0.3, 
             convert_system_message_to_human=True
         )
     async def generate_and_save(self, uid: str, subject_id: str, text_content: str, file_id: str = None, count: int = 10) -> list[Flashcard]:
@@ -26,7 +26,8 @@ class FlashcardService:
         1. **Front**: A clear question or concept.
         2. **Back**: A concise but complete answer.
         3. **Focus**: Key definitions, formulas, dates, and core concepts.
-        4. **Output**: Return a RAW JSON List of objects. NO Markdown.
+        4. **CRITICAL**: Make questions entirely self-contained. NEVER use phrases like "based on the text", "in the provided document", or "as described".
+        5. **Output**: Return a RAW JSON List of objects. NO Markdown.
         
         Example format:
         [
@@ -35,7 +36,7 @@ class FlashcardService:
         ]
         
         Text Content:
-        {text_content[:15000]}  # Limit context to avoid overload
+        {text_content}
         """
         
         try:
@@ -53,7 +54,6 @@ class FlashcardService:
             
             created_cards = []
             
-            # Use batch for efficiency
             batch = self.db.batch()
             col_ref = self.db.collection("users").document(uid).collection("flashcards")
             
@@ -89,7 +89,6 @@ class FlashcardService:
     
     def get_cards_due(self, uid: str, subject_id: str):
         now = datetime.now()
-        # For now, fetch all and filter to avoid needing composite index immediately
         all_cards = self.get_cards_for_subject(uid, subject_id)
         return [c for c in all_cards if c.next_review <= now]
 

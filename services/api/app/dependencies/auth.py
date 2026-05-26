@@ -6,10 +6,7 @@ import logging
 security = HTTPBearer()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """
-    Decodes the Firebase ID Token from the Authorization header.
-    Returns the decoded token containing 'uid' and other claims.
-    """
+
     token = credentials.credentials
     try:
         decoded_token = auth.verify_id_token(token)

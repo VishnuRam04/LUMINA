@@ -6,7 +6,6 @@ import '../data/kanban_repository.dart';
 import '../domain/kanban_board.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import 'kanban_board_page.dart';
 
@@ -33,12 +32,11 @@ class _KanbanPageState extends State<KanbanPage> {
     final u = await DevAuth.ensureSignedIn();
     setState(() => uid = u);
   }
-  
-  void _showShareDialog(KanbanBoard board) {
-    // Generate a simple code - using first 6 chars of ID for now, reversed to be "random-ish"
-    // In a real app, this should be a stored 6-digit code.
-    final code = board.id.substring(0, 6).toUpperCase(); 
-    
+
+  void _showShareDialog(KanbanBoard board) async {
+    final code = await repo.getOrGenerateShareCode(uid!, board.id);
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -49,18 +47,16 @@ class _KanbanPageState extends State<KanbanPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              QrImageView(
-                data: code,
-                version: QrVersions.auto,
-                size: 200.0,
-              ),
+              const Text('Share Code', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              const Text(
-                '5 7 7 1 6 9', // Placeholder code to match image strictly, or dynamic 'code' variable
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 4),
+              Text(
+                code.split('').join(' '),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 4,
+                ),
               ),
-               // Actually using the dynamic one for functionality, but keeping styling similar
-               // Text(code.split('').join(' '), style: ...),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -72,12 +68,20 @@ class _KanbanPageState extends State<KanbanPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
-                    side: const BorderSide(color: Color(0xFF4C4EA1), width: 2), // Gradient border simulated
-                     // For exact gradient border we need a Container but simple border is okay for now
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    side: const BorderSide(
+                      color: Color(0xFF4C4EA1),
+                      width: 2,
+                    ), // Gradient border simulated
+                    // For exact gradient border we need a Container but simple border is okay for now
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('Share Code', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: const Text(
+                    'Share Code',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                 ),
               ),
             ],
@@ -94,7 +98,12 @@ class _KanbanPageState extends State<KanbanPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Center(child: Text('Enter Code', style: TextStyle(fontWeight: FontWeight.bold))),
+        title: const Center(
+          child: Text(
+            'Enter Code',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -108,13 +117,18 @@ class _KanbanPageState extends State<KanbanPage> {
                     controller: codeCtrls[index],
                     focusNode: focusNodes[index],
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                     keyboardType: TextInputType.number,
                     maxLength: 1,
                     decoration: InputDecoration(
-                       counterText: '',
-                       contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      counterText: '',
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     onChanged: (val) {
                       if (val.isNotEmpty && index < 5) {
@@ -133,20 +147,43 @@ class _KanbanPageState extends State<KanbanPage> {
         actions: [
           Center(
             child: SizedBox(
-               width: 200,
-               child: ElevatedButton(
-                onPressed: () {
-                  // Join logic here
-                  Navigator.pop(context);
+              width: 200,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final code = codeCtrls.map((c) => c.text).join();
+                  if (code.length == 6) {
+                    final success = await repo.joinBoard(uid!, code);
+                    if (mounted) {
+                      Navigator.pop(context);
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Joined board successfully!'),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Invalid code or error joining.'),
+                          ),
+                        );
+                      }
+                    }
+                  }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white, 
+                  backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
                   side: const BorderSide(color: Color(0xFF4C4EA1), width: 2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   elevation: 5,
                 ),
-                child: const Text('Join Board', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Join Board',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ),
@@ -158,7 +195,7 @@ class _KanbanPageState extends State<KanbanPage> {
   void _showCreateDialog() {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -166,13 +203,22 @@ class _KanbanPageState extends State<KanbanPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
-            TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description')),
+            TextField(
+              controller: titleCtrl,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
             // Visibility, etc.
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               if (uid != null && titleCtrl.text.isNotEmpty) {
@@ -205,118 +251,141 @@ class _KanbanPageState extends State<KanbanPage> {
         Positioned.fill(
           child: Image.asset('assets/images/background.png', fit: BoxFit.cover),
         ),
-        
+
         SafeArea(
           child: Column(
             children: [
-               // Header
-               Padding(
-                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                 child: Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                   children: [
-                     const Text('Kanban Boards', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                     // Add any header icons if needed
-                   ],
-                 ),
-               ),
-               
-               // Search Bar
-               Padding(
-                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                 child: Row(
-                   children: [
-                     Expanded(
-                       child: TextField(
-                         controller: _searchCtrl,
-                         decoration: InputDecoration(
-                           hintText: 'Value', // As per image mockup text 'Value' (?) or 'Search'
-                           prefixIcon: const Icon(Icons.search),
-                           filled: true,
-                           fillColor: Colors.white.withOpacity(0.5),
-                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                           contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                         ),
-                       ),
-                     ),
-                     const SizedBox(width: 8),
-                     Container(
-                       padding: const EdgeInsets.all(12),
-                       decoration: BoxDecoration(
-                         color: Colors.white.withOpacity(0.5),
-                         borderRadius: BorderRadius.circular(12),
-                       ),
-                       child: const Icon(Icons.tune),
-                     ),
-                   ],
-                 ),
-               ),
-               
-               const SizedBox(height: 16),
-               
-               // Board List
-               Expanded(
-                 child: StreamBuilder<List<KanbanBoard>>(
-                   stream: repo.watchBoards(uid!),
-                   builder: (context, snap) {
-                     if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
-                     if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                     
-                     final boards = snap.data!;
-                     if (boards.isEmpty) return const Center(child: Text('No boards found.'));
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Kanban Boards',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    // Add any header icons if needed
+                  ],
+                ),
+              ),
 
-                     return ListView.separated(
-                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                       itemCount: boards.length,
-                       separatorBuilder: (_, __) => const SizedBox(height: 16),
-                       itemBuilder: (context, i) {
-                         final b = boards[i];
-                         return KanbanBoardCard(
-                           board: b,
-                           onDelete: () => repo.deleteBoard(b.id),
-                           onShare: () => _showShareDialog(b),
-                         );
-                       },
-                     );
-                   },
-                 ),
-               ),
-               
-               // Bottom Buttons
-               Padding(
-                 padding: const EdgeInsets.all(16.0),
-                 child: Row(
-                   children: [
-                     Expanded(
-                       child: ElevatedButton.icon(
-                         onPressed: _showJoinDialog,
-                         icon: const Icon(Icons.link),
-                         label: const Text('Join via code'),
-                         style: ElevatedButton.styleFrom(
-                           backgroundColor: const Color(0xFF4C4EA1),
-                           foregroundColor: Colors.white,
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                           padding: const EdgeInsets.symmetric(vertical: 16),
-                         ),
-                       ),
-                     ),
-                     const SizedBox(width: 16),
-                     Expanded(
-                       child: ElevatedButton.icon(
-                         onPressed: _showCreateDialog,
-                         icon: const Icon(Icons.add),
-                         label: const Text('Create Board'),
-                         style: ElevatedButton.styleFrom(
-                           backgroundColor: const Color(0xFFFACD16), // Yellow
-                           foregroundColor: Colors.white,
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                           padding: const EdgeInsets.symmetric(vertical: 16),
-                         ),
-                       ),
-                     ),
-                   ],
-                 ),
-               ),
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        decoration: InputDecoration(
+                          hintText:
+                              'Value', // As per image mockup text 'Value' (?) or 'Search'
+                          prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 0,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.tune),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Board List
+              Expanded(
+                child: StreamBuilder<List<KanbanBoard>>(
+                  stream: repo.watchBoards(uid!),
+                  builder: (context, snap) {
+                    if (snap.hasError)
+                      return Center(child: Text('Error: ${snap.error}'));
+                    if (!snap.hasData)
+                      return const Center(child: CircularProgressIndicator());
+
+                    final boards = snap.data!;
+                    if (boards.isEmpty)
+                      return const Center(child: Text('No boards found.'));
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      itemCount: boards.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 16),
+                      itemBuilder: (context, i) {
+                        final b = boards[i];
+                        return KanbanBoardCard(
+                          board: b,
+                          uid: uid!,
+                          onDelete: () => repo.deleteBoard(b.ownerUid, b.id),
+                          onShare: () => _showShareDialog(b),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              // Bottom Buttons
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _showJoinDialog,
+                        icon: const Icon(Icons.link),
+                        label: const Text('Join via code'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4C4EA1),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _showCreateDialog,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create Board'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFACD16), // Yellow
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -329,10 +398,12 @@ class KanbanBoardCard extends StatelessWidget {
   final KanbanBoard board;
   final VoidCallback onDelete;
   final VoidCallback onShare;
+  final String uid;
 
   const KanbanBoardCard({
-    super.key, 
+    super.key,
     required this.board,
+    required this.uid,
     required this.onDelete,
     required this.onShare,
   });
@@ -356,7 +427,9 @@ class KanbanBoardCard extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => KanbanBoardPage(board: board)),
+          MaterialPageRoute(
+            builder: (_) => KanbanBoardPage(board: board, uid: uid),
+          ),
         );
       },
       onLongPress: () {
@@ -366,21 +439,23 @@ class KanbanBoardCard extends StatelessWidget {
           builder: (context) => CupertinoActionSheet(
             title: Text(board.title),
             actions: [
-              CupertinoActionSheetAction(
-                onPressed: () {
-                  Navigator.pop(context);
-                  onShare();
-                },
-                child: const Text('Share Board'),
-              ),
-              CupertinoActionSheetAction(
-                isDestructiveAction: true,
-                onPressed: () {
-                   Navigator.pop(context);
-                   onDelete();
-                },
-                child: const Text('Delete Board'),
-              ),
+              if (board.ownerUid == uid)
+                CupertinoActionSheetAction(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onShare();
+                  },
+                  child: const Text('Share Board'),
+                ),
+              if (board.ownerUid == uid)
+                CupertinoActionSheetAction(
+                  isDestructiveAction: true,
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onDelete();
+                  },
+                  child: const Text('Delete Board'),
+                ),
             ],
             cancelButton: CupertinoActionSheetAction(
               isDefaultAction: true,
@@ -407,7 +482,11 @@ class KanbanBoardCard extends StatelessWidget {
             ],
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         padding: const EdgeInsets.all(4),
@@ -423,57 +502,90 @@ class KanbanBoardCard extends StatelessWidget {
               // Title
               Row(
                 children: [
-                  const Icon(Icons.code, size: 20, color: Colors.black87), // Assuming code icon from image '< >'
+                  const Icon(
+                    Icons.code,
+                    size: 20,
+                    color: Colors.black87,
+                  ), // Assuming code icon from image '< >'
                   const SizedBox(width: 8),
-                  Expanded(child: Text(board.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-                  // Notification badge? '1' in red circle in image. For now hardcode or omit.
+                  Expanded(
+                    child: Text(
+                      board.title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (board.ownerUid == uid)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.share_outlined,
+                        color: Colors.black54,
+                      ),
+                      onPressed: onShare,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Avatars
               SizedBox(
                 height: 40,
                 child: Stack(
-                  children: List.generate(board.memberAvatars.length.clamp(0, 4), (index) {
-                    return Positioned(
-                      left: index * 24.0,
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.white,
+                  children: List.generate(
+                    board.memberAvatars.length.clamp(0, 4),
+                    (index) {
+                      return Positioned(
+                        left: index * 24.0,
                         child: CircleAvatar(
-                          radius: 18,
-                          backgroundImage: NetworkImage(board.memberAvatars[index]),
-                          onBackgroundImageError: (_, __) => const Icon(Icons.person),
+                          radius: 20,
+                          backgroundColor: Colors.white,
+                          child: CircleAvatar(
+                            radius: 18,
+                            backgroundImage: NetworkImage(
+                              board.memberAvatars[index],
+                            ),
+                            onBackgroundImageError: (_, __) =>
+                                const Icon(Icons.person),
+                          ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    },
+                  ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Footer: Updated tag + Due date
               Row(
-                 children: [
-                   Container(
-                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                     decoration: BoxDecoration(
-                       border: Border.all(color: deepBlue),
-                       borderRadius: BorderRadius.circular(20),
-                     ),
-                     child: Text(
-                       'Updated ${_timeAgo(board.updatedAt)}',
-                       style: const TextStyle(color: Colors.grey, fontSize: 12),
-                     ),
-                   ),
-                   const Spacer(),
-                   // "Due 3rd Sept" - Placeholder or real field? Domain doesn't have it yet.
-                   // Showing placeholder text for now or description
-                   Text(board.description, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                 ],
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: deepBlue),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Updated ${_timeAgo(board.updatedAt)}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ),
+                  const Spacer(),
+                  // "Due 3rd Sept" - Placeholder or real field? Domain doesn't have it yet.
+                  // Showing placeholder text for now or description
+                  Text(
+                    board.description,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
               ),
             ],
           ),

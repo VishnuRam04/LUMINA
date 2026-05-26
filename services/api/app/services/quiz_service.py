@@ -5,6 +5,7 @@ from langchain_core.prompts import PromptTemplate
 from app.core.config import settings
 from app.services.vector_store import VectorStoreService
 from app.models.quiz import QuizQuestion, QuestionType, GradeResponse
+from google.cloud.firestore_v1.base_query import FieldFilter, And
 
 class QuizService:
     def __init__(self):
@@ -15,55 +16,33 @@ class QuizService:
         )
         self.vector_store = VectorStoreService()
 
-    async def generate_quiz(self, subject_id: str, file_ids: List[str], count: int, difficulty: str) -> List[QuizQuestion]:
-        # 1. Fetch Context
-        # We query the vector store for each file to ensure we get relevant content from specific chapters
+    async def generate_quiz(self, uid: str, subject_id: str, file_ids: List[str], count: int, bloom_levels: List[str] = []) -> List[QuizQuestion]:
         context_docs = []
-        queries = ["Important definitions", "Key concepts", "Summary", "Formulas and theorems"]
         
         for file_id in file_ids:
-            # We try a few broad queries to get a good spread of content
-            for q in queries:
-                # Assuming vector_store has similarity_search with filter
-                # We need to expose a method to filter by filename specifically, or use the kwargs
-                # Using the existing similarity_search_with_retry but modifying filter logic momentarily
-                # We will just pass filter dict directly if supported
-                try:
-                    # Direct access to vector_db query if possible, or use the wrapper
-                    # The wrapper in vector_store.py needs update to support custom filter dict or we pass subject_id=None and manual filter
-                    # Let's rely on the wrapper supporting kwargs or just instantiate a search
-                    
-                    # Workaround: The current wrapper takes subject_id. 
-                    # We will bypass the wrapper's convenience method and call vector_db directly if needed
-                    # but actually let's try to update VectorStoreService to be more flexible later.
-                    # For now, let's try passing None for subject_id and hope we can somehow filter.
-                    # Actually, let's just query by subject_id (which includes all files) and specific query term might bring relevant docs?
-                    # No, that ignores the "Choose Chapter" constraint.
-                    
-                    # We will implement a helper in this service to fetch by file.
-                    # FirestoreVectorStore supports filter={"metadata_field": "value"}
-                    
-                    docs = self.vector_store.vector_db.similarity_search(
-                        q, 
-                        k=3, 
-                        filter={"filename": file_id} # This maps to metadata.filename == file_id
-                    )
-                    context_docs.extend(docs)
-                except Exception as e:
-                    print(f"Error fetching docs for {file_id}: {e}")
+            try:
+                docs = self.vector_store.db.collection(self.vector_store.collection_name)\
+                    .where(filter=FieldFilter("metadata.user_id", "==", uid))\
+                    .where(filter=FieldFilter("metadata.subject_id", "==", subject_id))\
+                    .where(filter=FieldFilter("metadata.filename", "==", file_id))\
+                    .stream()
+                
+                for doc in docs:
+                    data = doc.to_dict()
+                    if 'content' in data:
+                        context_docs.append(data['content'])
+            except Exception as e:
+                print(f"Error fetching docs for {file_id}: {e}")
         
-        # Deduplicate docs
         seen = set()
         unique_docs = []
-        for doc in context_docs:
-            if doc.page_content not in seen:
-                seen.add(doc.page_content)
-                unique_docs.append(doc)
+        for text in context_docs:
+            if text not in seen:
+                seen.add(text)
+                unique_docs.append(text)
         
-        # Limit context size to avoid token limits (heuristic)
-        context_text = "\n\n".join([d.page_content for d in unique_docs[:15]]) 
+        context_text = "\n\n".join(unique_docs)
         
-        # 2. Generate Questions
         prompt = PromptTemplate(
             template="""
             You are an expert exam setter. Create a quiz based STRICTLY on the following context.
@@ -73,9 +52,10 @@ class QuizService:
             
             **Requirements:**
             1. Create {count} questions.
-            2. Difficulty: {difficulty}.
-            3. Mix Question Types: 70% Multiple Choice (MCQ), 30% Open Ended.
-            4. Format EXACTLY as a JSON list of objects.
+            2. Mix Question Types: 70% Multiple Choice (MCQ), 30% Open Ended.
+            3. Follow Bloom's Taxonomy: Focus the questions heavily on the specific cognitive levels required: {bloom_levels}. Structure the questions around these cognitive tasks.
+            4. CRITICAL: Formulate the questions to be 100% self-contained. NEVER use phrases like "based on the context", "in the provided text", or "on page X". The test-taker will not be looking at the notes when they answer.
+            5. Format EXACTLY as a JSON list of objects.
             
             **JSON Structure for MCQ:**
             {{
@@ -95,17 +75,18 @@ class QuizService:
             
             Return ONLY the valid JSON list. do not use markdown code blocks.
             """,
-            input_variables=["context", "count", "difficulty"]
+            input_variables=["context", "count", "bloom_levels"]
         )
+        
+        bloom_val = ", ".join(bloom_levels) if bloom_levels else "Progressively structured: remember/understand -> application -> analyze/evaluate (default)"
         
         chain = prompt | self.llm
         response = await chain.ainvoke({
             "context": context_text,
             "count": count,
-            "difficulty": difficulty
+            "bloom_levels": bloom_val
         })
         
-        # Clean and Parse
         content = response.content.replace("```json", "").replace("```", "").strip()
         try:
             raw_data = json.loads(content)

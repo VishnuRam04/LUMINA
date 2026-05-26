@@ -7,6 +7,7 @@ import '../../../core/ui/main_scaffold.dart';
 import '../data/auth_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'register_page.dart';
+import '../../admin/ui/admin_auth_page.dart';
 
 
 class AuthPage extends StatefulWidget {
@@ -194,8 +195,7 @@ class _AuthPageState extends State<AuthPage> {
             ),
             ),
 
-              const SizedBox(height: 20),
-
+              const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pushReplacement(
@@ -203,6 +203,14 @@ class _AuthPageState extends State<AuthPage> {
                   );
                 },
                 child: const Text('Bypass Auth (Test)'),
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminAuthPage()));
+                },
+                icon: const Icon(Icons.admin_panel_settings, color: Colors.grey),
+                label: const Text('Admin Portal Login', style: TextStyle(color: Colors.grey, fontSize: 12)),
               ),
             ],
           ),

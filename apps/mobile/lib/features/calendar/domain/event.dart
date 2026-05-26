@@ -8,6 +8,7 @@ class CalendarEvent {
   final String location;
   final String? subjectId;
   final bool isRecurring;
+  final String? colorHex;
 
   CalendarEvent({
     required this.id,
@@ -17,6 +18,7 @@ class CalendarEvent {
     required this.location,
     required this.subjectId,
     required this.isRecurring,
+    this.colorHex,
   });
 
   factory CalendarEvent.fromMap(String id, Map<String, dynamic> data) {
@@ -28,6 +30,7 @@ class CalendarEvent {
       location: (data['location'] ?? '') as String,
       subjectId: data['subject_id'] as String?,
       isRecurring: (data['is_recurring'] ?? false) as bool,
+      colorHex: data['color_hex'] as String?,
     );
   }
 }

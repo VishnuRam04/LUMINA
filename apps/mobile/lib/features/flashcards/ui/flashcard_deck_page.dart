@@ -91,7 +91,6 @@ class FlashcardDeckPage extends StatelessWidget {
           const SizedBox(height: 8),
           Align(alignment: Alignment.centerLeft, child: Text("$total Cards", style: const TextStyle(fontSize: 12, color: Colors.grey))),
           const SizedBox(height: 12),
-          // Progress Bar
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Row(
@@ -131,20 +130,20 @@ class FlashcardDeckPage extends StatelessWidget {
     final now = DateTime.now();
     final studyCards = cards.where((c) {
       if (c.status == 'new') return true;
-      if (c.status == 'learning') return true; // Always study learning cards unless handled strictly by review time
+      if (c.status == 'learning') return true; 
       return c.nextReview.isBefore(now);
     }).toList();
 
     return Row(
       children: [
-        Expanded(child: _actionButton(context, "Study Now", Icons.play_arrow_outlined, AppColors.deepBlue, 
-          () => _navigateToStudy(context, studyCards, cards.length))), // Study Due + New
+        Expanded(child: _actionButton(context, "Study Now", Icons.play_arrow_outlined, const Color(0xFF4CAF50), 
+          () => _navigateToStudy(context, studyCards, cards.length))), 
         const SizedBox(width: 12),
-        Expanded(child: _actionButton(context, "Review Mistake", Icons.error_outline, AppColors.yellow, 
+        Expanded(child: _actionButton(context, "Review Mistake", Icons.error_outline, AppColors.pink, 
           () => _navigateToStudy(context, cards.where((c) => c.status == 'learning').toList(), cards.length))),
         const SizedBox(width: 12),
-        Expanded(child: _actionButton(context, "Shuffle Now", Icons.shuffle, AppColors.pink, 
-          () => _navigateToStudy(context, cards..shuffle(), cards.length))), // Shuffle ignores schedule, brute force review
+        Expanded(child: _actionButton(context, "Shuffle Now", Icons.shuffle, AppColors.deepBlue, 
+          () => _navigateToStudy(context, cards..shuffle(), cards.length))), 
       ],
     );
   }

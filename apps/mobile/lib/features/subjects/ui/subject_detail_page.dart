@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,6 +15,7 @@ import '../../quiz/data/quiz_repository.dart';
 import '../../quiz/domain/quiz_model.dart';
 import '../../quiz/ui/quiz_page.dart';
 import '../../quiz/ui/quiz_creation_dialog.dart';
+import '../../../../core/notifications/notification_service.dart';
 
 class SubjectDetailPage extends StatefulWidget {
   final Subject subject;
@@ -48,7 +50,7 @@ void dispose() {
     fileRepo = FileRepository(FirebaseFirestore.instance, FirebaseStorage.instance);
     quizRepo = QuizRepository();
     _quizzesFuture = quizRepo.fetchQuizzes(widget.subject.id);
-    _init(); // missing in original snippet but presumed context
+    _init(); 
   }
   
   void _refreshQuizzes() {
@@ -68,32 +70,34 @@ void dispose() {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
+      withData: kIsWeb,
     );
 
-    if (result != null && result.files.single.path != null) {
+    if (result != null) {
+      final filename = result.files.single.name;
+      
+      final allFiles = await fileRepo.getAllUserFiles(uid!);
+      if (allFiles.contains(filename)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('File "$filename" already exists in your workspace!')),
+          );
+        }
+        return;
+      }
+      
       setState(() => isUploading = true);
       try {
-        final file = File(result.files.single.path!);
-        final filename = result.files.single.name;
-        
         await fileRepo.uploadFile(
           uid: uid!,
           subjectId: widget.subject.id,
-          file: file,
+          file: kIsWeb ? null : File(result.files.single.path!),
+          bytes: kIsWeb ? result.files.single.bytes : null,
           filename: filename,
         );
         
-        // TRIGGER INGESTION
         try {
-           final storagePath = 'users/$uid/subjects/${widget.subject.id}/files/$filename'; 
-           // Note: We need the PRECISE storage path we used in FileRepo.
-           // In FileRepo we sanitized the filename. Ideally FileRepo returns the path.
-           // For now, let's assume standard sanitation or rely on backend to handle standard filename?
-           // Actually, let's stick to the path we know.
-           
-           // Better: Update FileRepo to return the storage path or url.
-           // But let's just construct it here for MVP since we know the logic.
-           // Sanitize logic was: filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+
            final safeName = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
            final fullPath = 'users/$uid/subjects/${widget.subject.id}/files/$safeName';
            
@@ -103,9 +107,13 @@ void dispose() {
              filename: filename
            );
            print('Ingestion triggered for $fullPath');
+
+           NotificationService().showInstantNotification(
+             title: 'Upload Complete',
+             body: 'Your notes ($filename) were successfully processed.',
+           );
         } catch (apiErr) {
            print('Ingestion failed: $apiErr');
-           // Don't block UI success for this, just log it.
         }
 
         if (mounted) {
@@ -158,7 +166,6 @@ void dispose() {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Back Button & Title Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -166,27 +173,29 @@ void dispose() {
                          onTap: () => Navigator.pop(context),
                          child: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black54),
                        ),
-                       // Title
-                       Text(
-                         widget.subject.subjectName,
-                         style: const TextStyle(
-                           fontSize: 24,
-                           fontWeight: FontWeight.bold,
+                       Expanded(
+                         child: Text(
+                           widget.subject.subjectName,
+                           textAlign: TextAlign.center,
+                           style: const TextStyle(
+                             fontSize: 24,
+                             fontWeight: FontWeight.bold,
+                           ),
+                           maxLines: 1,
+                           overflow: TextOverflow.ellipsis,
                          ),
                        ),
-                       const SizedBox(width: 24), // Balance spacing
+                       const SizedBox(width: 20),
                     ],
                   ),
                   
                   const SizedBox(height: 24),
 
-                  // Subject Info Card
                   _buildSubjectCard(),
 
                   const SizedBox(height: 24),
 
-                  // Generated Quiz (kept as is)
-                  // Generated Quiz Header
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -197,12 +206,23 @@ void dispose() {
                       IconButton(
                         onPressed: () async {
                           if (uid == null) return;
-                          // Fetch files first
+                          
+                          if (!widget.subject.hasStudyPlan) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please generate a Study Plan first.')),
+                              );
+                              return;
+                          }
+
                           final files = await fileRepo.getFiles(uid!, widget.subject.id);
                           if (mounted) {
                             await showDialog(
                               context: context, 
-                              builder: (_) => QuizCreationDialog(subjectId: widget.subject.id, files: files)
+                              builder: (_) => QuizCreationDialog(
+                                  subjectId: widget.subject.id, 
+                                  files: files,
+                                  bloomLevels: widget.subject.bloomLevels,
+                              )
                             );
                             _refreshQuizzes();
                           }
@@ -244,12 +264,10 @@ void dispose() {
 
                   const SizedBox(height: 24),
 
-                  // Ask Lumina Banner
                   _buildAskLuminaBanner(),
 
                   const SizedBox(height: 24),
 
-                  // Notes & Materials - REAL DATA
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -264,27 +282,25 @@ void dispose() {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Notes & Materials',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            const Expanded(
+                              child: Text(
+                                'Notes & Materials',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          
-                            Row(
-                              children: [
-                                IconButton(
-                                  tooltip: 'Search files',
-                                  onPressed: () {
-                                    setState(() {
-                                      isSearching = !isSearching;
-                                      if (!isSearching) {
-                                        fileSearchCtrl.clear();
-                                        fileQuery = '';
-                                      }
-                                    });
-                                  },
-                                  icon: Icon(isSearching ? Icons.close : Icons.search),
-                                ),
-                              ],
+                            IconButton(
+                              tooltip: 'Search files',
+                              onPressed: () {
+                                setState(() {
+                                  isSearching = !isSearching;
+                                  if (!isSearching) {
+                                    fileSearchCtrl.clear();
+                                    fileQuery = '';
+                                  }
+                                });
+                              },
+                              icon: Icon(isSearching ? Icons.close : Icons.search),
                             ),
                             TextButton.icon(
                               onPressed: isUploading ? null : _pickAndUploadFile,
@@ -327,7 +343,6 @@ void dispose() {
                             final filtered = fileQuery.isEmpty
                                 ? files
                                 : files.where((f) {
-                                    // Filter by file name
                                     final name = f.name.toLowerCase();
                                     return name.contains(fileQuery);
                                   }).toList();
@@ -357,12 +372,6 @@ void dispose() {
     );
   }
 
-  // ... (SubjectCard, QuizCard, Banner omitted for brevity if they are unchanged, but replace content tool replaces blocks so I must include them or leverage previous blocks if I could select ranges precisely. 
-  // Since I am replacing the whole Class body essentially, I should include the helper methods too or use multiple chunks.
-  // I will use replacement chunks to just update the STATE and BUILD method, assuming helpers are at the bottom.)
-
-  // Actually, I'll provide the WHOLE build method and above, and keep the helpers.
-  // Wait, I need to update _buildFileItem to take SubjectFile instead of String.
 
 
   Widget _buildSubjectCard() {
@@ -371,7 +380,7 @@ void dispose() {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.transparent), // Gradient border handled by wrapper usually, simplified here
+        border: Border.all(color: Colors.transparent), 
         boxShadow: [
            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
         ],
@@ -385,7 +394,7 @@ void dispose() {
              end: Alignment.bottomRight,
            ),
          ),
-         padding: const EdgeInsets.all(3), // Border width
+         padding: const EdgeInsets.all(3), 
          child: Container(
            decoration: BoxDecoration(
              color: Colors.white,
@@ -415,7 +424,6 @@ void dispose() {
                    ],
                  ),
                ),
-               // Placeholder for "Math doodle" image
                const Opacity(
                  opacity: 0.5,
                  child: Icon(Icons.calculate_outlined, size: 60, color: Colors.grey),
@@ -441,7 +449,7 @@ void dispose() {
                 leading: const Icon(Icons.delete, color: Colors.red),
                 title: const Text('Delete quiz'),
                 onTap: () async {
-                  Navigator.pop(context); // close bottom sheet
+                  Navigator.pop(context); 
 
                   final confirm = await showDialog<bool>(
                     context: context,
@@ -463,10 +471,8 @@ void dispose() {
 
                   if (confirm != true) return;
 
-                  // delete quiz
                   await quizRepo.deleteQuiz(widget.subject.id, quiz.id);
 
-                  // refresh quizzes
                   setState(() {
                     _quizzesFuture =
                         quizRepo.fetchQuizzes(widget.subject.id);
@@ -502,7 +508,6 @@ void dispose() {
              Text('Attempts: ${quiz.attempts}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
              
           const Spacer(),
-          // Button
           SizedBox(
             width: double.infinity,
             height: 28,
@@ -528,33 +533,44 @@ void dispose() {
   Widget _buildAskLuminaBanner() {
     return Container(
       width: double.infinity,
-      height: 60,
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF4C4EA1), width: 2), // Blue border
-         boxShadow: [
+        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4C4EA1), Color(0xFFEF3E5F), Color(0xFFFACD16)],
+        ),
+        boxShadow: [
            BoxShadow(color: const Color(0xFF4C4EA1).withOpacity(0.3), blurRadius: 4, offset:const Offset(0, 2)),
         ],
       ),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatPage()));
-        },
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-             const Icon(Icons.auto_awesome, color: Colors.amber, size: 24),
-             const SizedBox(width: 8),
-             RichText(
-               text: const TextSpan(
-                 children: [
-                   TextSpan(text: 'ASK ', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                   TextSpan(text: 'LUMINA', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w400, letterSpacing: 1.5)),
-                 ],
-               ),
-             ),
-          ],
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatPage()));
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                 const Icon(Icons.auto_awesome, color: Colors.amber, size: 24),
+                 const SizedBox(width: 8),
+                 RichText(
+                   text: const TextSpan(
+                     children: [
+                       TextSpan(text: 'ASK ', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                       TextSpan(text: 'LUMINA', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w400, letterSpacing: 1.5)),
+                     ],
+                   ),
+                 ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -571,7 +587,7 @@ void dispose() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(file.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(file.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                 Text(_formatBytes(file.sizeBytes), style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
@@ -600,10 +616,8 @@ void dispose() {
           ),
           const SizedBox(width: 8),
           
-          // Delete option
           GestureDetector(
             onTap: () {
-              // Confirm delete
               showDialog(
                 context: context, 
                 builder: (ctx) => AlertDialog(
@@ -621,7 +635,6 @@ void dispose() {
                            filename: file.name,
                          );
                          
-                         // Trigger Backend Deletion
                          try {
                            await ApiClient().deleteFile(file.name);
                            print('Backend deletion triggered for ${file.name}');

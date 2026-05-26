@@ -44,6 +44,11 @@ dependencies:
   firebase_storage: ^13.0.5
   http: ^1.6.0
   flutter_markdown: ^0.7.7+1
+  url_launcher: ^6.3.2
+  flutter_local_notifications: ^20.1.0
+  timezone: ^0.10.1
+  flutter_timezone: ^5.0.2
+  image_picker: ^1.2.1
 
 dev_dependencies:
   flutter_test:

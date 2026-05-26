@@ -16,8 +16,8 @@ class QuizRepository {
     return data.map((json) => Quiz.fromJson(json)).toList();
   }
 
-  Future<Quiz> generateQuiz(String subjectId, List<String> fileIds, {int count = 10, String difficulty = "Medium"}) async {
-    final data = await _apiClient.generateQuiz(subjectId, fileIds, count: count, difficulty: difficulty);
+  Future<Quiz> generateQuiz(String subjectId, List<String> fileIds, {int count = 10, List<String> bloomLevels = const []}) async {
+    final data = await _apiClient.generateQuiz(subjectId, fileIds, count: count, bloomLevels: bloomLevels);
     return Quiz.fromJson(data);
   }
 

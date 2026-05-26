@@ -5,19 +5,26 @@ class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Stream of auth state changes (used by StreamBuilder in main.dart)
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Current User
   User? get currentUser => _auth.currentUser;
 
-  // Sign In with Email & Password
   Future<UserCredential> signIn(String email, String password) async {
     try {
-      return await _auth.signInWithEmailAndPassword(
+      final cred = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password
       );
+
+      if (cred.user != null) {
+        final doc = await _firestore.collection('users').doc(cred.user!.uid).get();
+        if (doc.exists && doc.data()?['is_suspended'] == true) {
+          await _auth.signOut();
+          throw 'Your account has been suspended by the administrator.';
+        }
+      }
+
+      return cred;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
         throw 'User not found';

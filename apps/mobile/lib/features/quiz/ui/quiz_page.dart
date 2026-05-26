@@ -21,7 +21,7 @@ class _QuizPageState extends State<QuizPage> {
   bool _isChecking = false;
   
   // Feedback Data
-  Map<String, dynamic> _feedback = {}; // {questionId: GradeResponse or correct/incorrect}
+  Map<String, dynamic> _feedback = {}; 
   Map<String, String> _userAnswers = {}; 
 
   @override
@@ -62,7 +62,6 @@ class _QuizPageState extends State<QuizPage> {
   Future<void> _checkMCQ(QuizQuestion q, String selectedOption) async {
     setState(() {
       _userAnswers[q.id] = selectedOption;
-      // Pre-calculated feedback since we know correct answer
       bool isCorrect = selectedOption == q.correctAnswer;
        _feedback[q.id] = {
          'is_correct': isCorrect,

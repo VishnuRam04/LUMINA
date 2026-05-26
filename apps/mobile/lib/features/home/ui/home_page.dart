@@ -10,6 +10,7 @@ import '../../calendar/domain/event.dart';
 import '../../calendar/data/task_repository.dart';
 import '../../calendar/domain/task.dart';
 import '../../calendar/ui/calendar_page.dart'; // For TaskCard
+import '../../profile/ui/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback? onAskLuminaPressed;
@@ -49,7 +50,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     if (uid == null) {
       return const Scaffold(
-        backgroundColor: Color(0xFFF5F5F7), // Fallback
+        backgroundColor: Color(0xFFF5F5F7), 
         body: Center(child: CircularProgressIndicator()),
       );
     }
@@ -63,22 +64,31 @@ class _HomePageState extends State<HomePage> {
             final events = eventSnap.data ?? [];
             final tasks = taskSnap.data ?? [];
 
-            // Filter events for selected day (for the calendar timeline only)
             final dayEvents = events.where((e) => isSameDay(e.startTime, _selectedDate)).toList();
             
-            // For the bottom list: Show ALL tasks, sorted by Priority then Due Date
-            final sortedTasks = List<TaskItem>.from(tasks);
+            var sortedTasks = List<TaskItem>.from(tasks);
             sortedTasks.sort((a, b) {
-              // 1. Priority (High < Medium < Low)
               int priorityComp = a.priority.index.compareTo(b.priority.index);
               if (priorityComp != 0) return priorityComp;
               
-              // 2. Due Date (Earliest first, Null last)
               if (a.dueDate == null && b.dueDate == null) return 0;
               if (a.dueDate == null) return 1;
               if (b.dueDate == null) return -1;
               return a.dueDate!.compareTo(b.dueDate!);
             });
+            
+            sortedTasks = sortedTasks.take(5).toList();
+
+            // // sortedTasks.sort(a,b){
+            // if (a.dueDate == null && b.dueDate == null) return 0;
+            // if (a.dueDate == null) return 1;
+            // if (b.dueDate == null) return -1;
+
+            // int datecomp = a.dueDate!.compareTo(b.dueDate!);
+            // if (datecomp != 0) return datecomp;
+            // return a.priority.index.compareTo(b.priority.index);
+            
+            // }
 
             return Stack(
               fit: StackFit.expand,
@@ -104,12 +114,19 @@ class _HomePageState extends State<HomePage> {
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
-                                      'Dash',
-                                      style: TextStyle(
-                                        fontSize: 14, 
-                                        color: Colors.grey, 
-                                        fontWeight: FontWeight.w400
+                                    GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+                                      },
+                                      child: CircleAvatar(
+                                        radius: 18,
+                                        backgroundColor: Colors.grey[300],
+                                        backgroundImage: FirebaseAuth.instance.currentUser?.photoURL != null
+                                            ? NetworkImage(FirebaseAuth.instance.currentUser!.photoURL!)
+                                            : null,
+                                        child: FirebaseAuth.instance.currentUser?.photoURL == null
+                                            ? const Icon(Icons.person, color: Colors.white, size: 20)
+                                            : null,
                                       ),
                                     ),
                                     TextButton.icon(
@@ -130,45 +147,50 @@ class _HomePageState extends State<HomePage> {
                               ),
                               const SizedBox(height: 16),
 
-                              // 1. Weekly Calendar Card (Pass specific events for timeline)
                               _buildWeeklyCalendar(dayEvents),
                               
                               const SizedBox(height: 16),
 
-                              // Ask Lumina
                               GestureDetector(
                                 onTap: widget.onAskLuminaPressed,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.all(2), 
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.grey.shade200),
+                                    borderRadius: BorderRadius.circular(14),
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF4C4EA1), Color(0xFFEF3E5F), Color(0xFFFACD16)],
+                                    ),
                                     boxShadow: [
                                       BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
                                     ],
                                   ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                       Image.asset(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
                                           'assets/images/sparkles.png',
                                           width: 24,
                                           height: 24,
                                           errorBuilder: (c, e, s) => const Icon(Icons.auto_awesome, color: Colors.purple),
                                         ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'ASK LUMINA',
-                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'ASK LUMINA',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                               
                               const SizedBox(height: 16),
-                               // Section Title
                               const Padding(
                                 padding: EdgeInsets.only(left: 4.0, bottom: 8),
                                 child: Text(
@@ -177,11 +199,27 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               ),
 
-                              // Task List
+                              
                               if (sortedTasks.isEmpty)
                                 const Padding(
+                                
                                   padding: EdgeInsets.all(20.0),
-                                  child: Center(child: Text('No tasks yet.', style: TextStyle(color: Colors.grey))),
+
+                                  child:Center(
+                                  child: Column(
+                                  
+                                  children:[
+                                    
+                                    Icon(Icons.check_circle_outline, color:Colors.green, size:40),
+
+                                    SizedBox(height: 8),
+                                    
+                                     Text('No tasks yet.', style:TextStyle(color: Colors.grey)),
+                                  ],
+                                  ),
+                                  ),
+
+                            
                                 )
                               else
                                 ListView.separated(
@@ -211,7 +249,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- 1. Calendar Widget ---
   Widget _buildWeeklyCalendar(List<CalendarEvent> events) {
     return Container(
       decoration: BoxDecoration(
@@ -224,17 +261,14 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // Days Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(7, (index) {
               final now = DateTime.now();
-              // Calculate start of week (Sunday)
               final startOfWeek = now.subtract(Duration(days: now.weekday % 7));
               final date = startOfWeek.add(Duration(days: index));
               final dayName = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][index];
               
-              // Highlight based on _selectedDate
               final isSelected = isSameDay(date, _selectedDate);
               
               return InkWell(
@@ -248,12 +282,11 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 24),
           
-          // Timeline Events (Use passed events)
           if (events.isEmpty) 
              const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20.0),
                 child: Text(
-                  'No classes today',
+                  'No events today',
                   style: TextStyle(color: Colors.grey),
                 ),
               )
@@ -336,7 +369,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTaskCard(TaskItem t) {
-    // Reuse TaskCard from Calendar Page
     return TaskCard(
       key: ValueKey(t.id),
       task: t,
@@ -397,19 +429,22 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTimelineItem(CalendarEvent event) {
-    // Format Time: 10.00 AM - 11.30 AM
     final start = DateFormat('h.mm a').format(event.startTime);
     final end = DateFormat('h.mm a').format(event.endTime);
+
     final timeStr = '$start - $end';
 
-    // Cycle colors or random based on event ID hash
-    final colors = [AppColors.deepBlue, AppColors.pink, AppColors.yellow];
-    final color = colors[event.hashCode % colors.length];
+
+    Color color = AppColors.deepBlue;
+    if (event.colorHex != null) {
+      try {
+        color = Color(int.parse(event.colorHex!.replaceAll('#', '0xFF')));
+      } catch (_) {}
+    }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Colored Bar
         Container(
           width: 6, 
           height: 48, 
@@ -420,9 +455,8 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(width: 12),
         
-        // Time Column
         SizedBox(
-          width: 90, // Slightly wider for formatted time
+          width: 90, 
           child: Text(
             timeStr, 
             style: const TextStyle(
@@ -434,7 +468,6 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(width: 8),
 
-        // Content Column
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -453,9 +486,13 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
                     const SizedBox(width: 4),
-                    Text(
-                      event.location, 
-                      style: const TextStyle(fontSize: 13, color: Colors.grey)
+                    Expanded(
+                      child: Text(
+                        event.location, 
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 )
