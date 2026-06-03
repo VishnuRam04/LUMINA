@@ -12,7 +12,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await NotificationService().init();
-  await NotificationService().cancelAllNotifications();
+  await NotificationService().cancelAllNotifications(); // clear existing stack
   runApp(const MyApp());
 }
 
