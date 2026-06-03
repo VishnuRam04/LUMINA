@@ -175,7 +175,11 @@ class FlashcardDeckPage extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No cards to study in this queue!")));
       return;
     }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => FlashcardStudyPage(cards: studySet, totalCardsInDeck: totalDeckCount)));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => FlashcardStudyPage(
+      cards: studySet, 
+      totalCardsInDeck: totalDeckCount,
+      title: chapterName ?? subjectName,
+    )));
   }
 
   Widget _buildCardList(List<Flashcard> cards) {
@@ -253,7 +257,7 @@ class FlashcardDeckPage extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 16),
-        // Auto Generate
+        
          Expanded(
           child: OutlinedButton.icon(
             onPressed: () { 

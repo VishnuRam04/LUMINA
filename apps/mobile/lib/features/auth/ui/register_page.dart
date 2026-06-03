@@ -27,7 +27,7 @@ bool _isLoading = false;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent, // Wait, if the image covers it, this is fine
+      backgroundColor: Colors.transparent, 
       body: Stack(
       children: [
         Positioned.fill(
@@ -37,9 +37,9 @@ bool _isLoading = false;
           ),
         ),
                 Align(
-          alignment: const Alignment(0, -1.15), // 0 is center, -0.2 moves it up ~10% of screen
+          alignment: const Alignment(0, -1.15), 
           child: Column(
-            mainAxisSize: MainAxisSize.min, // Shrink to fit content so Align works
+            mainAxisSize: MainAxisSize.min,
             children: [
               Image.asset(
                 'assets/images/luminalogo.png',
@@ -50,7 +50,7 @@ bool _isLoading = false;
                           const Text(
                 'Come Join Us Today', 
                 style: TextStyle(
-                  color: Colors.black, // Changed to black/dark blue to be visible on white bg 
+                  color: Colors.black, 
                   fontSize: 18,
                   fontWeight: FontWeight.bold
                 )
@@ -58,7 +58,7 @@ bool _isLoading = false;
               const Text(
                 'Your AI powered education journey starts here', 
                 style: TextStyle(
-                  color: Colors.grey, // Changed to black/dark blue to be visible on white bg 
+                  color: Colors.grey,  
                   fontSize: 11,
                   fontWeight: FontWeight.w200
                 )
@@ -162,8 +162,7 @@ bool _isLoading = false;
                   setState(() => _isLoading = true);
 
                   try {
-                    // Using the AuthRepository we created
-                    // Ensure to import it at the top
+         
                     final authRepo = AuthRepository(); 
                     await authRepo.signUp(
                       email: new_emailController.text.trim(),
@@ -172,7 +171,6 @@ bool _isLoading = false;
                     );
                     
                     if (context.mounted) {
-                      // Navigate directly to MainScaffold and remove all previous routes
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (_) => const MainScaffold()),
                         (route) => false,

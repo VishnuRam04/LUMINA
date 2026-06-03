@@ -105,22 +105,18 @@ class FileRepository {
     required String fileId,
     required String filename,
   }) async {
-    // 1. Delete from Firestore
     await _filesRef(uid, subjectId).doc(fileId).delete();
 
-    // 2. Delete from Storage
     try {
       final safeFilename = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       await _storageRef(uid, subjectId, safeFilename).delete();
     } catch (e) {
-      // Ignore if file doesn't exist in storage
       print('Error deleting file from storage: $e');
     }
   }
 
   Future<List<String>> getAllUserFiles(String uid) async {
     try {
-      // 1. Get all subjects
       final subjectsSnap = await _db
           .collection('users')
           .doc(uid)
@@ -129,8 +125,6 @@ class FileRepository {
 
       List<String> allFilenames = [];
 
-      // 2. For each subject, get files
-      // Using Future.wait for parallel execution
       await Future.wait(
         subjectsSnap.docs.map((subjectDoc) async {
           final filesSnap = await subjectDoc.reference

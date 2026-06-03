@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
+import '../../../core/theme/app_colors.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../../subjects/data/subject_repository.dart';
@@ -12,6 +12,7 @@ import '../domain/event.dart';
 import '../data/event_repository.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../chat/ui/chat_page.dart';
+import 'task_card.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -36,8 +37,6 @@ class _CalendarPageState extends State<CalendarPage> {
     subjectRepo = SubjectRepository(FirebaseFirestore.instance);
     eventRepo = EventRepository(FirebaseFirestore.instance);
     _selectedDay = _focusedDay;
-    // Clear out ghost OS-level notifications from previous hardcoded logic
-    NotificationService().cancelAllNotifications();
     _init();
   }
 
@@ -73,6 +72,7 @@ class _CalendarPageState extends State<CalendarPage> {
         existing?.endTime ?? startTime.add(const Duration(hours: 1));
     String? subjectId = existing?.subjectId;
     bool isRecurring = existing?.isRecurring ?? false;
+    int? reminderMinutes;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -126,7 +126,6 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Start Time
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Start Time'),
@@ -137,7 +136,6 @@ class _CalendarPageState extends State<CalendarPage> {
                     onTap: () => pickDateTime(true),
                   ),
 
-                  // End Time
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('End Time'),
@@ -175,6 +173,18 @@ class _CalendarPageState extends State<CalendarPage> {
                     title: const Text('Recurring Event'),
                     value: isRecurring,
                     onChanged: (v) => setLocal(() => isRecurring = v),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int?>(
+                    value: reminderMinutes,
+                    decoration: const InputDecoration(labelText: 'Reminder'),
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('None')),
+                      DropdownMenuItem(value: 60, child: Text('1 Hour Before')),
+                      DropdownMenuItem(value: 360, child: Text('6 Hours Before')),
+                      DropdownMenuItem(value: 1440, child: Text('1 Day Before')),
+                    ],
+                    onChanged: (v) => setLocal(() => reminderMinutes = v),
                   ),
                 ],
               ),
@@ -219,35 +229,30 @@ class _CalendarPageState extends State<CalendarPage> {
             isRecurring: isRecurring,
           );
         }
-      } catch (e) {
-        if (e is FirebaseException && e.code == 'permission-denied') {
-          _showPermissionErrorDialog();
-        } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        
+        if (reminderMinutes != null) {
+          DateTime notifyTime = startTime.subtract(Duration(minutes: reminderMinutes!));
+          if (notifyTime.isAfter(DateTime.now())) {
+            NotificationService().scheduleNotification(
+              id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+              title: 'Upcoming Event: ${titleCtrl.text}',
+              body: 'Starts at ${DateFormat('h:mm a').format(startTime)}',
+              scheduledTime: notifyTime,
+            );
+          }
         }
-      }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to save the event right now. Please try again.'),
+            ),
+          );
+}
+      
     }
   }
 
-  void _showPermissionErrorDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Permission Denied'),
-        content: const Text(
-          'Please update your Firestore Security Rules to allow access to the "events" collection.\n\nAdd this to your rules:\nmatch /events/{eventId} {\n  allow read, write: if request.auth != null && request.auth.uid == userId;\n}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Future<void> _showTaskDialog({
     TaskItem? existing,
@@ -256,10 +261,11 @@ class _CalendarPageState extends State<CalendarPage> {
     final titleCtrl = TextEditingController(text: existing?.title ?? '');
     final descCtrl = TextEditingController(text: existing?.description ?? '');
     DateTime? dueDate =
-        existing?.dueDate ?? _selectedDay; // Default to selected day
+        existing?.dueDate ?? _selectedDay; 
     TaskPriority priority = existing?.priority ?? TaskPriority.medium;
     TaskStatus status = existing?.status ?? TaskStatus.todo;
     String? subjectId = existing?.subjectId;
+    int? reminderMinutes;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -309,7 +315,6 @@ class _CalendarPageState extends State<CalendarPage> {
                     maxLines: 2,
                   ),
                   const SizedBox(height: 12),
-                  // Due Date Picker
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Due Date', style: TextStyle(fontSize: 14)),
@@ -340,7 +345,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   onChanged: (v) => setLocal(() => subjectId = v),
                 ),
                 const SizedBox(height: 12),
-                // Priority
+
                 DropdownButtonFormField<TaskPriority>(
                   value: priority,
                   decoration: const InputDecoration(labelText: 'Priority'),
@@ -360,6 +365,18 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                   onChanged: (v) =>
                       setLocal(() => priority = v ?? TaskPriority.medium),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int?>(
+                  value: reminderMinutes,
+                  decoration: const InputDecoration(labelText: 'Reminder'),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('None')),
+                    DropdownMenuItem(value: 60, child: Text('1 Hour Before')),
+                    DropdownMenuItem(value: 360, child: Text('6 Hours Before')),
+                    DropdownMenuItem(value: 1440, child: Text('1 Day Before')),
+                  ],
+                  onChanged: (v) => setLocal(() => reminderMinutes = v),
                 ),
               ],
             ),
@@ -402,6 +419,18 @@ class _CalendarPageState extends State<CalendarPage> {
           subjectId: subjectId,
         );
       }
+      
+      if (reminderMinutes != null && dueDate != null) {
+        DateTime notifyTime = dueDate!.subtract(Duration(minutes: reminderMinutes!));
+        if (notifyTime.isAfter(DateTime.now())) {
+          NotificationService().scheduleNotification(
+            id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+            title: 'Task Due Soon: ${titleCtrl.text}',
+            body: 'Due at ${DateFormat('EEE, MMM d, h:mm a').format(dueDate!)}',
+            scheduledTime: notifyTime,
+          );
+        }
+      }
     }
   }
 
@@ -423,9 +452,14 @@ class _CalendarPageState extends State<CalendarPage> {
               final dayTasks = tasks
                   .where((t) => t.dueDate != null && isSameDay(t.dueDate, day))
                   .toList();
-              final dayEvents = events
-                  .where((e) => isSameDay(e.startTime, day))
-                  .toList();
+              final dayEvents = events.where((e) {
+                if (isSameDay(e.startTime, day)) return true;
+                if (e.isRecurring) {
+                  return day.weekday == e.startTime.weekday && 
+                         (day.isAfter(e.startTime) || isSameDay(day, e.startTime));
+                }
+                return false;
+              }).toList();
               return [...dayTasks, ...dayEvents];
             }
 
@@ -452,13 +486,6 @@ class _CalendarPageState extends State<CalendarPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                iconTheme: const IconThemeData(color: Colors.black),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.filter_list),
-                    onPressed: () {},
-                  ),
-                ],
               ),
               body: Column(
                 children: [
@@ -557,7 +584,6 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
 
                   const SizedBox(height: 16),
-//lumina button
                   GestureDetector(
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatPage())),
                     child: Container(
@@ -586,9 +612,9 @@ class _CalendarPageState extends State<CalendarPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.asset(
-                              'assets/images/sparkles.png',
-                              width: 24,
-                              height: 24,
+                              'assets/images/LUMINA FYP FINALR.png',
+                              width: 28,
+                              height: 28,
                               errorBuilder: (c, e, s) => const Icon(
                                 Icons.auto_awesome,
                                 color: Colors.purple,
@@ -619,7 +645,7 @@ class _CalendarPageState extends State<CalendarPage> {
                           child: ElevatedButton(
                             onPressed: () => _openEventDialog(),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4C4EA1),
+                              backgroundColor: AppColors.deepBlue,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
@@ -662,7 +688,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
                   const SizedBox(height: 16),
 
-                  // items List
+
                   Expanded(
                     child: selectedItems.isEmpty
                         ? const Center(
@@ -769,7 +795,7 @@ class _CalendarPageState extends State<CalendarPage> {
             Container(
               height: 8,
               decoration: const BoxDecoration(
-                color: Color(0xFF4C4EA1), // Deep Blue for events
+                color: Color(0xFF4C4EA1), 
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
@@ -834,7 +860,7 @@ class _CalendarPageState extends State<CalendarPage> {
       child: TaskCard(
         key: ValueKey(t.id),
         task: t,
-        onComplete: () async {
+        onToggle: (isDone) async {
           await taskRepo.updateTask(
             uid: uid!,
             taskId: t.id,
@@ -842,7 +868,7 @@ class _CalendarPageState extends State<CalendarPage> {
             description: t.description,
             dueDate: t.dueDate,
             priority: t.priority,
-            status: TaskStatus.done,
+            status: isDone ? TaskStatus.done : TaskStatus.todo,
             subjectId: t.subjectId,
           );
         },
@@ -851,195 +877,3 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 }
 
-class TaskCard extends StatefulWidget {
-  final TaskItem task;
-  final VoidCallback onComplete;
-
-  const TaskCard({super.key, required this.task, required this.onComplete});
-
-  @override
-  State<TaskCard> createState() => _TaskCardState();
-}
-// Task Card
-class _TaskCardState extends State<TaskCard> {
-  bool _isCompleted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _isCompleted = widget.task.status == TaskStatus.done;
-  }
-
-  @override
-  void didUpdateWidget(TaskCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.task.status != widget.task.status) {
-      _isCompleted = widget.task.status == TaskStatus.done;
-    }
-  }
-
-  void _handleTap() {
-    if (_isCompleted) return; // Already done
-
-    setState(() => _isCompleted = true);
-
-    // Wait for animation to finish before calling callback
-    Future.delayed(const Duration(milliseconds: 600), () {
-      widget.onComplete();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = widget.task;
-    
-    // Always keep the main structural color the signature Red
-    final Color barColor = const Color(0xFFEF3E5F);
-    
-    // Dynamically calculate styling purely for the priority tag
-    Color tagBgColor;
-    Color tagTextColor;
-    String priorityLabel;
-
-    switch (t.priority) {
-      case TaskPriority.high:
-        tagBgColor = Colors.red.shade50;
-        tagTextColor = Colors.red.shade800;
-        priorityLabel = 'High';
-        break;
-      case TaskPriority.medium:
-        tagBgColor = Colors.orange.shade50;
-        tagTextColor = Colors.orange.shade900;
-        priorityLabel = 'Medium';
-        break;
-      case TaskPriority.low:
-      default:
-        tagBgColor = Colors.green.shade50;
-        tagTextColor = Colors.green.shade800;
-        priorityLabel = 'Low';
-        break;
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Top Color Bar
-          Container(
-            height: 8,
-            decoration: BoxDecoration(
-              color: barColor,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                // Radio/Checkbox Circle
-                GestureDetector(
-                  onTap: _handleTap,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: barColor, width: 2),
-                      color: _isCompleted ? barColor : Colors.transparent,
-                    ),
-                    child: _isCompleted
-                        ? const Icon(Icons.check, size: 16, color: Colors.white)
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title with Strikethrough Animation
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 300),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: _isCompleted ? Colors.grey : Colors.black,
-                          decoration: _isCompleted
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                        ),
-                        child: Text(t.title),
-                      ),
-                      const SizedBox(height: 4),
-                      if (t.dueDate != null)
-                        Text(
-                          DateFormat('dd/MM hh:mm a').format(t.dueDate!),
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      if (t.description.isNotEmpty)
-                        AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 300),
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 12,
-                            decoration: _isCompleted
-                                ? TextDecoration.lineThrough
-                                : TextDecoration.none,
-                          ),
-                          child: Text(
-                            t.description,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                // Priority Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: tagBgColor, // Soft tinted background
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: tagTextColor.withOpacity(0.3)), // Subtle matching border
-                  ),
-                  child: Text(
-                    priorityLabel,
-                    style: TextStyle(
-                      color: tagTextColor, // Bold matched text
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

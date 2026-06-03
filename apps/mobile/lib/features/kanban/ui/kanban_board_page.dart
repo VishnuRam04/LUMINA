@@ -176,7 +176,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                               attachmentName = pickedFile!.name;
                             } catch (e) {
                               print("Error uploading attachment: $e");
-                              // Optionally show a snackbar here
                             }
                           }
 
@@ -265,7 +264,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background matching other pages
           Positioned.fill(
             child: Image.asset(
               'assets/images/background.png',
@@ -276,7 +274,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header: Back Button & Title
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -305,7 +302,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
 
                 const SizedBox(height: 16),
 
-                // Group Members Section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
@@ -321,10 +317,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          // Avatars (Overlapping stack to avoid negative width crash)
                           SizedBox(
                             height: 50,
-                            // calculate width based on overlapping
                             width:
                                 widget.board.memberAvatars.length.clamp(0, 4) *
                                     35.0 +
@@ -355,7 +349,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                             ),
                           ),
                           const SizedBox(width: 24),
-                          // Invite Button
                           if (widget.board.ownerUid == widget.uid)
                             GestureDetector(
                               onTap: _showInviteDialog,
@@ -393,7 +386,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
 
                 const SizedBox(height: 24),
 
-                // Columns using Board Stream
                 Expanded(
                   child: StreamBuilder<DocumentSnapshot>(
                     stream: FirebaseFirestore.instance.collection('boards').doc(widget.board.id).snapshots(),
@@ -412,7 +404,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                           return ListView.separated(
                             scrollDirection: Axis.horizontal,
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: cols.length + 1, // +1 for Add Column button
+                            itemCount: cols.length + 1, 
                             separatorBuilder: (_, __) => const SizedBox(width: 16),
                             itemBuilder: (context, i) {
                               if (i == cols.length) {
@@ -443,17 +435,16 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
   Widget _buildColumn(String title, String colId, List<KanbanTask> tasks, List<Map<String, String>> currentCols) {
     return Container(
       width: 300,
-      margin: const EdgeInsets.only(bottom: 24), // Space from bottom
+      margin: const EdgeInsets.only(bottom: 24), 
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: Colors.grey.withOpacity(0.3),
           width: 1,
-        ), // Fallback
+        ), 
       ),
       child: Container(
-        // Gradient border simulation
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
@@ -470,7 +461,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
           ),
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -522,7 +512,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                 ),
               ),
 
-              // Task List
               Expanded(
                 child: ListView.separated(
                   padding: const EdgeInsets.all(16),
@@ -608,7 +597,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
         actions: [
           TextButton(
              onPressed: () async {
-               // Protect the Todo column from deletion if it's the last one
                if (currentCols.length <= 1) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot delete the last column!')));
@@ -653,7 +641,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     String selectedCol = task.columnId;
     bool isSaving = false;
 
-    // Fetch columns
     final boardDoc = await FirebaseFirestore.instance.collection('boards').doc(widget.board.id).get();
     if (!boardDoc.exists) return;
     final boardData = boardDoc.data() as Map<String, dynamic>? ?? {};
@@ -831,7 +818,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                         return const Center(child: Text("No comments yet."));
                       return ListView.builder(
                         itemCount: comments.length,
-                        // Not reversing visually here, just showing them in standard order:
                         itemBuilder: (context, i) {
                           final c = comments[i];
                           final idx = widget.board.members.indexOf(c.authorId);
@@ -971,10 +957,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
   }
 
   Widget _buildTaskCard(KanbanTask task) {
-    Color priorityColor = Colors.green;
-    if (task.priority == 'high') priorityColor = const Color(0xFFEF3E5F);
-    if (task.priority == 'medium') priorityColor = const Color(0xFFFACD16);
-
     return GestureDetector(
       onLongPress: () => _showItemOptions(task),
       child: Container(

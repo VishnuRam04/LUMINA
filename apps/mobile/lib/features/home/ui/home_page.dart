@@ -9,7 +9,7 @@ import '../../calendar/data/event_repository.dart';
 import '../../calendar/domain/event.dart';
 import '../../calendar/data/task_repository.dart';
 import '../../calendar/domain/task.dart';
-import '../../calendar/ui/calendar_page.dart'; // For TaskCard
+import '../../calendar/ui/task_card.dart'; 
 import '../../profile/ui/profile_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -64,9 +64,16 @@ class _HomePageState extends State<HomePage> {
             final events = eventSnap.data ?? [];
             final tasks = taskSnap.data ?? [];
 
-            final dayEvents = events.where((e) => isSameDay(e.startTime, _selectedDate)).toList();
+            final dayEvents = events.where((e) {
+              if (isSameDay(e.startTime, _selectedDate)) return true;
+              if (e.isRecurring) {
+                return _selectedDate.weekday == e.startTime.weekday && 
+                       (_selectedDate.isAfter(e.startTime) || isSameDay(_selectedDate, e.startTime));
+              }
+              return false;
+            }).toList();
             
-            var sortedTasks = List<TaskItem>.from(tasks);
+            var sortedTasks = List<TaskItem>.from(tasks.where((t) => t.status != TaskStatus.done));
             sortedTasks.sort((a, b) {
               int priorityComp = a.priority.index.compareTo(b.priority.index);
               if (priorityComp != 0) return priorityComp;
@@ -174,9 +181,9 @@ class _HomePageState extends State<HomePage> {
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         Image.asset(
-                                          'assets/images/sparkles.png',
-                                          width: 24,
-                                          height: 24,
+                                          'assets/images/LUMINA FYP FINALR.png',
+                                          width: 28,
+                                          height: 28,
                                           errorBuilder: (c, e, s) => const Icon(Icons.auto_awesome, color: Colors.purple),
                                         ),
                                         const SizedBox(width: 8),
@@ -233,7 +240,7 @@ class _HomePageState extends State<HomePage> {
                                   },
                                 ),
                                 
-                                const SizedBox(height: 80), // Bottom padding
+                                const SizedBox(height: 80), 
                             ],
                           ),
                         ),
@@ -264,13 +271,12 @@ class _HomePageState extends State<HomePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(7, (index) {
-              final now = DateTime.now();
+              final now = _selectedDate;
               final startOfWeek = now.subtract(Duration(days: now.weekday % 7));
               final date = startOfWeek.add(Duration(days: index));
               final dayName = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][index];
-              
               final isSelected = isSameDay(date, _selectedDate);
-              
+
               return InkWell(
                 onTap: () {
                   setState(() => _selectedDate = date);
@@ -322,7 +328,7 @@ class _HomePageState extends State<HomePage> {
           Container(
             height: 8,
             decoration: const BoxDecoration(
-              color: Color(0xFF4C4EA1), // Deep Blue for events
+              color: Color(0xFF4C4EA1), 
               borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
             ),
           ),
@@ -372,7 +378,7 @@ class _HomePageState extends State<HomePage> {
     return TaskCard(
       key: ValueKey(t.id),
       task: t,
-      onComplete: () async {
+      onToggle: (isDone) async {
         await taskRepo.updateTask(
           uid: uid!,
           taskId: t.id,
@@ -380,7 +386,7 @@ class _HomePageState extends State<HomePage> {
           description: t.description,
           dueDate: t.dueDate,
           priority: t.priority,
-          status: TaskStatus.done,
+          status: isDone ? TaskStatus.done : TaskStatus.todo,
           subjectId: t.subjectId,
         );
       },

@@ -26,12 +26,14 @@ class StudyPlanSetupDialog extends StatefulWidget {
 class AssessmentItem {
   String type;
   DateTime date;
+  DateTime? endDate;
   List<String> chapters;
   String title;
 
   AssessmentItem({
     required this.type,
     required this.date,
+    this.endDate,
     required this.chapters,
     required this.title,
   });
@@ -44,6 +46,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
 
   final List<String> types = [
     'Class',
+    'Lab',
     'Quiz',
     'Exam',
     'Assignment',
@@ -60,7 +63,6 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
         ? ['No Files Available']
         : widget.fileNames.toSet().toList();
 
-    // Parse backend initial events
     for (var ev in widget.initialEvents) {
       try {
         final dStr = ev['date'] as String;
@@ -69,14 +71,20 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
           d = DateTime.tryParse(dStr) ?? DateTime.now().add(const Duration(days: 7));
         } else {
           final temp = DateTime.tryParse(dStr) ?? DateTime.now().add(const Duration(days: 7));
-          d = DateTime(temp.year, temp.month, temp.day, 9, 0); // Default 9 AM if no time provided
+          d = DateTime(temp.year, temp.month, temp.day, 9, 0); 
+        }
+
+        DateTime? endD;
+        if (ev['end_date'] != null) {
+          endD = DateTime.tryParse(ev['end_date'] as String);
         }
 
         String t = 'Quiz';
         final evType = (ev['type'] as String?)?.toLowerCase() ?? '';
         final evTitle = (ev['title'] as String?)?.toLowerCase() ?? '';
         
-        if (evType.contains('class') || evTitle.contains('class') || evTitle.contains('lecture') || evTitle.contains('lab')) t = 'Class';
+        if (evType.contains('class') || evTitle.contains('class') || evTitle.contains('lecture')) t = 'Class';
+        if (evType.contains('lab') || evTitle.contains('lab')) t = 'Lab';
         if (evType.contains('assignment') || evTitle.contains('assignment')) t = 'Assignment';
         if (evType.contains('project') || evTitle.contains('project')) t = 'Project';
         if (evType.contains('exam') || evTitle.contains('exam')) t = 'Exam';
@@ -88,8 +96,9 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
           AssessmentItem(
             type: t,
             date: d,
+            endDate: endD,
             title: ev['title'] as String? ?? t,
-            chapters: (t == 'Assignment' || t == 'Project')
+            chapters: (t != 'Quiz' && t != 'Midterm' && t != 'Final' && t != 'Exam')
                 ? []
                 : [
                     chapters.isNotEmpty ? chapters.first : 'No Files Available',
@@ -100,7 +109,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
         print('Error parsing event: $e');
       }
     }
-
+//deefault
     if (assessments.isEmpty) {
       assessments.add(
         AssessmentItem(
@@ -143,7 +152,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
   }
 
   Future<void> _selectChapters(AssessmentItem item) async {
-    if (item.type == 'Assignment' || item.type == 'Project') return;
+    if (item.type != 'Quiz' && item.type != 'Midterm' && item.type != 'Final' && item.type != 'Exam') return;
 
     final selected = await showDialog<List<String>>(
       context: context,
@@ -212,24 +221,25 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
       await taskRepo.deleteTasksBySubjectId(uid, widget.subject.id);
 
       for (var item in assessments) {
-        if (item.type == 'Class') {
-          // Generate 14 weeks of recurrent classes starting from the selected date
-          for (int i = 0; i < 14; i++) {
+        if (item.type == 'Class' || item.type == 'Lab') {
+          DateTime current = item.date;
+          DateTime limit = item.endDate ?? item.date.add(const Duration(days: 14 * 7));
+          limit = DateTime(limit.year, limit.month, limit.day, 23, 59, 59); 
+          
+          while (current.isBefore(limit)) {
             await eventRepo.addEvent(
               uid: uid,
               title: item.title,
-              startTime: item.date.add(Duration(days: i * 7)),
-              endTime: item.date.add(Duration(days: i * 7, hours: 2)),
-              location: (item.chapters.isEmpty || item.chapters.first == 'No Files Available')
-                  ? 'Lecture'
-                  : 'Lecture on ${item.chapters.join(", ")}',
+              startTime: current,
+              endTime: current.add(const Duration(hours: 2)),
+              location: item.type == 'Class' ? 'Lecture' : 'Lab',
               subjectId: widget.subject.id,
-              isRecurring: true,
+              isRecurring: false,
               colorHex: widget.subject.colorHex,
             );
+            current = current.add(const Duration(days: 7));
           }
         } else {
-          // 1. Create Event for Assessment
           await eventRepo.addEvent(
             uid: uid,
             title: item.title,
@@ -244,59 +254,39 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
           );
         }
 
-        // 2. Create Tasks for studying
-        if (_generateTasks) {
-          if (item.type != 'Assignment' && item.type != 'Project') {
-            int daysOffset = 2;
-            
-            if (item.chapters.isEmpty || item.chapters.first == 'No Files Available') {
+        if (_generateTasks && (item.type == 'Quiz' || item.type == 'Midterm' || item.type == 'Final' || item.type == 'Exam')) {
+          int daysOffset = 2;
+          
+          if (item.chapters.isEmpty || item.chapters.first == 'No Files Available') {
+            await taskRepo.addTask(
+              uid: uid,
+              title: 'Prepare for ${item.title}',
+              dueDate: item.date.subtract(Duration(days: daysOffset)),
+              subjectId: widget.subject.id,
+              description: 'Upcoming ${item.type}',
+              priority: TaskPriority.high,
+              status: TaskStatus.todo,
+            );
+          } else {
+            for (int i = item.chapters.length - 1; i >= 0; i--) {
+              var chap = item.chapters[i];
               await taskRepo.addTask(
                 uid: uid,
-                title: 'Prepare for ${item.title}',
+                title: 'Study $chap',
                 dueDate: item.date.subtract(Duration(days: daysOffset)),
                 subjectId: widget.subject.id,
-                description: 'Upcoming ${item.type}',
+                description: 'Prepare for ${item.title}',
                 priority: TaskPriority.high,
                 status: TaskStatus.todo,
               );
-            } else {
-              for (int i = item.chapters.length - 1; i >= 0; i--) {
-                var chap = item.chapters[i];
-                await taskRepo.addTask(
-                  uid: uid,
-                  title: 'Study $chap',
-                  dueDate: item.date.subtract(Duration(days: daysOffset)),
-                  subjectId: widget.subject.id,
-                  description: 'Prepare for ${item.title}',
-                  priority: TaskPriority.high,
-                  status: TaskStatus.todo,
-                );
-                daysOffset += 3;
-              }
-            }
-          } else {
-            // It IS an Assignment or Project! Let's generate 3 milestones.
-            List<String> milestones = ['Drafting & Research', 'Core Work / Writing', 'Final Review & Polish'];
-            int daysOffset = 2;
-            for (int i = milestones.length - 1; i >= 0; i--) {
-              final taskDueDate = item.date.subtract(Duration(days: daysOffset));
-              await taskRepo.addTask(
-                uid: uid,
-                title: '${milestones[i]} for ${item.type}',
-                description: 'Milestone for upcoming ${item.type}',
-                dueDate: taskDueDate,
-                priority: i == 2 ? TaskPriority.high : TaskPriority.medium, // Review is High Priority
-                status: TaskStatus.todo,
-                subjectId: widget.subject.id,
-              );
-              daysOffset += 3; // Space out over 3 days each
+              daysOffset += 2;
             }
           }
         }
       }
 
       if (mounted) {
-        Navigator.pop(context, true); // Success
+        Navigator.pop(context, true); 
       }
     } catch (e) {
       print('Error generating plan: $e');
@@ -319,7 +309,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
         top: 24,
         bottom:
             MediaQuery.of(context).viewInsets.bottom +
-            24, // adjust for keyboard
+            24, 
       ),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -347,7 +337,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   children: [
-                    // Type Dropdown
+                    
                     Expanded(
                       flex: 3,
                       child: Container(
@@ -375,7 +365,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
                             onChanged: (v) {
                               setState(() {
                                 item.type = v!;
-                                if (v == 'Assignment' || v == 'Project') {
+                                if (v != 'Quiz' && v != 'Midterm' && v != 'Final' && v != 'Exam') {
                                   item.chapters.clear();
                                 }
                               });
@@ -385,7 +375,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Date Picker
+                    
                     Expanded(
                       flex: 4,
                       child: GestureDetector(
@@ -406,11 +396,11 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Chapter Selection
+                    
                     Expanded(
                       flex: 3,
                       child:
-                          (item.type == 'Assignment' || item.type == 'Project')
+                          (item.type != 'Quiz' && item.type != 'Midterm' && item.type != 'Final' && item.type != 'Exam')
                           ? Container(
                               height: 48,
                               alignment: Alignment.center,
@@ -451,7 +441,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
                               ),
                             ),
                     ),
-                    // Remove
+                    
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.grey),
                       onPressed: () => setState(() => assessments.remove(item)),
@@ -473,7 +463,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
             ),
             const SizedBox(height: 8),
 
-            // Add Another button
+            
             Container(
               height: 48,
               width: double.infinity,
@@ -507,7 +497,7 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
               ),
             ),
 
-            // Generate button (simulated gradient border via container)
+            
             Container(
               height: 48,
               decoration: BoxDecoration(
@@ -542,9 +532,9 @@ class _StudyPlanSetupDialogState extends State<StudyPlanSetupDialog> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Image.asset(
-                            'assets/images/sparkles.png',
-                            width: 20,
-                            height: 20,
+                            'assets/images/LUMINA FYP FINALR.png',
+                            width: 24,
+                            height: 24,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.star,
                               color: Colors.amber,

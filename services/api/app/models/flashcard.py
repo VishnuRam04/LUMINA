@@ -9,14 +9,12 @@ class Flashcard(BaseModel):
     front: str
     back: str
     
-    # SM-2 Parameters
     repetition: int = 0
     interval: int = 0
     ease_factor: float = 2.5
     next_review: datetime = Field(default_factory=datetime.now)
     
-    # Status
-    status: str = "new" # new, learning, mastered (derived from interval/repetition)
+    status: str = "new" 
     
     class Config:
         populate_by_name = True
@@ -38,4 +36,4 @@ class CreateCardRequest(BaseModel):
 
 class ReviewRequest(BaseModel):
     card_id: str
-    rating: int # 1 (Need Review) - 5 (Easy/Got it)
+    rating: int 

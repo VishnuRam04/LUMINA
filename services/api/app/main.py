@@ -14,10 +14,10 @@ app = FastAPI(title="Lumina API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (including OPTIONS)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],  
+    allow_headers=["*"],  
 )
 vector_store = None
 chat_service = None
@@ -77,7 +77,7 @@ async def ingest_file(request: IngestRequest, user: dict = Depends(get_current_u
                     subject_id=request.subject_id,
                     text_content=text,
                     file_id=request.filename, 
-                    count=10
+                    count=15
                 )
                 print(f"Flashcards generated for {request.filename}")
             except Exception as fc_e:
@@ -116,7 +116,6 @@ async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
         context_docs = vector_store.similarity_search_with_retry(
             request.query, 
             user_id=user['uid'], 
-            subject_id=None, 
             k=10
         )
         
@@ -151,14 +150,11 @@ class StudyPlanRequest(BaseModel):
 async def generate_study_plan(request: StudyPlanRequest, user: dict = Depends(get_current_user)):
     try:
         uid = user['uid']
-        # 1. Extract Text
         text = PDFIngestionService.process_file(request.file_path)
         
-        # 2. Generate Plan
         service = StudyPlanService()
         plan = await service.generate_plan(text, section=request.section)
         
-        # 3. Return the plan directly so the mobile app can show a Setup UI
         return plan
             
     except Exception as e:
@@ -170,10 +166,8 @@ from firebase_admin import auth as firebase_auth
 @app.delete("/admin/users/{uid}")
 async def delete_admin_user(uid: str, user: dict = Depends(get_current_user)):
     try:
-        # Delete user from Firebase Auth
         firebase_auth.delete_user(uid)
         
-        # Delete user from Firestore
         db = firestore.Client()
         db.collection('users').document(uid).delete()
         

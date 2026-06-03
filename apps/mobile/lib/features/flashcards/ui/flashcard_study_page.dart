@@ -6,8 +6,9 @@ import '../domain/flashcard.dart';
 class FlashcardStudyPage extends StatefulWidget {
   final List<Flashcard> cards;
   final int totalCardsInDeck;
+  final String title;
 
-  const FlashcardStudyPage({super.key, required this.cards, required this.totalCardsInDeck});
+  const FlashcardStudyPage({super.key, required this.cards, required this.totalCardsInDeck, required this.title});
 
   @override
   State<FlashcardStudyPage> createState() => _FlashcardStudyPageState();
@@ -49,7 +50,6 @@ class _FlashcardStudyPageState extends State<FlashcardStudyPage> {
           _isLoading = false;
         });
       } else {
-         // Finished
          Navigator.pop(context);
          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Session Complete! 🎉")));
       }
@@ -67,7 +67,7 @@ class _FlashcardStudyPageState extends State<FlashcardStudyPage> {
     final progress = (_currentIndex + 1) / _studyCards.length;
 
     return Scaffold(
-      backgroundColor: Colors.white, // Should be lightly gray maybe?
+      backgroundColor: Colors.white, 
       appBar: AppBar(
         title: const Text("Flash Card", style: TextStyle(color: Colors.grey, fontSize: 16)),
         centerTitle: true,
@@ -79,12 +79,12 @@ class _FlashcardStudyPageState extends State<FlashcardStudyPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Text("Chapter 3 - Derivatives", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+            Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
             const SizedBox(height: 4),
             Container(height: 3, width: 100, color: AppColors.deepBlue),
             const SizedBox(height: 24),
             
-            // The Card
+            
             GestureDetector(
               onTap: () => setState(() => _isFlipped = !_isFlipped),
               child: AnimatedContainer(
@@ -130,7 +130,7 @@ class _FlashcardStudyPageState extends State<FlashcardStudyPage> {
             ),
             const SizedBox(height: 32),
             
-            // Buttons
+            // Button
             if (_isFlipped)
               Row(
                 children: [
@@ -157,7 +157,7 @@ class _FlashcardStudyPageState extends State<FlashcardStudyPage> {
               
              const SizedBox(height: 24),
              
-             // Progress
+             
              LinearProgressIndicator(value: progress, color: AppColors.deepBlue, backgroundColor: Colors.grey.shade200),
              const SizedBox(height: 8),
              Text(

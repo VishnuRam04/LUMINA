@@ -38,7 +38,7 @@ class _QuizCreationDialogState extends State<QuizCreationDialog> {
       final quiz = await _repo.generateQuiz(
         widget.subjectId, 
         _selectedFiles.toList(), 
-        count: 5, 
+        count: 10, 
         bloomLevels: widget.bloomLevels
       );
       

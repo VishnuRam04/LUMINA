@@ -3,12 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class KanbanTask {
   final String id;
   final String title;
-  final String columnId; // 'todo', 'in_progress', 'done' or custom IDs
+  final String columnId; 
   final DateTime? dueDate;
-  final List<String> assignees; // URLs or User IDs
-  final List<String> unreadBy; // User IDs who have not read this task
+  final List<String> assignees; 
+  final List<String> unreadBy; 
   final int commentCount;
-  final String priority; // 'high', 'medium', 'low'
+  final String priority; 
   final String? attachmentUrl;
   final String? attachmentName;
 

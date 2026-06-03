@@ -6,13 +6,15 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import '../../subjects/data/file_repository.dart';
 import '../../calendar/data/event_repository.dart';
 import '../../../../core/notifications/notification_service.dart';
 import '../../../../core/api/api_client.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key});
+  final VoidCallback? onBackPressed;
+  const ChatPage({super.key, this.onBackPressed});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -23,10 +25,6 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   static final List<Map<String, String>> _messages = []; 
   bool _isLoading = false;
-
-  List<String> _allFiles = [];
-  List<String> _filteredFiles = [];
-  bool _showSuggestions = false;
 
   File? _selectedImage;
   String? _imageBase64;
@@ -46,8 +44,6 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    _fetchFiles();
-    _controller.addListener(_onTextChanged);
     
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -59,32 +55,9 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _fetchFiles() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-        final repo = FileRepository(FirebaseFirestore.instance, FirebaseStorage.instance);
-        final files = await repo.getAllUserFiles(uid);
-        setState(() => _allFiles = files);
-    }
-  }
-
-  void _onTextChanged() {
-      final text = _controller.text;
-      if (text.startsWith('@Summarise ')) {
-          final query = text.substring('@Summarise '.length).toLowerCase();
-          setState(() {
-              _filteredFiles = _allFiles.where((f) => f.toLowerCase().contains(query)).toList();
-              _showSuggestions = true;
-          });
-      } else {
-          if (_showSuggestions) setState(() => _showSuggestions = false);
-      }
   }
 
   @override
@@ -98,7 +71,6 @@ class _ChatPageState extends State<ChatPage> {
             left: 0,
             child: Opacity(
               opacity: 0.3,
-              child: Image.asset('assets/images/background.png', width: 150), 
             ),
           ),
           
@@ -119,40 +91,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 ),
 
-                // Suggestions Overlay
-                if (_showSuggestions)
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, -2))],
-                    ),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: _filteredFiles.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final file = _filteredFiles[index];
-                        return ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.picture_as_pdf, color: Colors.red, size: 20),
-                          title: Text(file, style: const TextStyle(fontSize: 14)),
-                          onTap: () {
-                            // Helper to set text and move cursor to end
-                            final newText = '@Summarise $file';
-                            _controller.text = newText;
-                            _controller.selection = TextSelection.fromPosition(TextPosition(offset: newText.length));
-                            setState(() => _showSuggestions = false);
 
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                
                 if (_isLoading)
                    const Padding(
                      padding: EdgeInsets.all(8.0),
@@ -172,9 +111,24 @@ class _ChatPageState extends State<ChatPage> {
     return Column(
       children: [
         const SizedBox(height: 10),
-        const Text(
-          'LUMINA AI',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
+                  onPressed: widget.onBackPressed ?? () => Navigator.pop(context),
+                ),
+              ),
+            ),
+            const Text(
+              'LUMINA AI',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            ),
+          ],
         ),
         const SizedBox(height: 20),
         
@@ -233,37 +187,13 @@ class _ChatPageState extends State<ChatPage> {
             ],
           ),
         ),
-        
-        const SizedBox(height: 16),
-        
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              _buildChip('Summarise', Colors.amber),
-              const SizedBox(width: 12),
-              _buildChip('Make a Quiz', const Color(0xFF4C4EA1)), 
-              const SizedBox(width: 12),
-              _buildChip('Explanation ?', const Color(0xFFEF3E5F)),
-
-            ],
-          ),
-        ),
       ],
-    );
-  }
-
-  Widget _buildChip(String label, Color color) {
-    return Chip(
-      label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      backgroundColor: color,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide.none),
     );
   }
 
   Widget _buildChatBubble(bool isUser, Map<String, String> msg) {
     String message = msg['content']!;
+    final attachmentLabel = msg['attachment'];
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -290,28 +220,65 @@ class _ChatPageState extends State<ChatPage> {
               const Text('Lumina AI', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
               const SizedBox(height: 4),
             ],
-            MarkdownBody(
-              data: message,
-              styleSheet: MarkdownStyleSheet(
-                p: TextStyle(
-                  color: isUser ? Colors.black87 : Colors.white,
-                  height: 1.4,
-                  fontSize: 16,
+            if (attachmentLabel != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? const Color(0xFFF3F4F8)
+                      : Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: isUser
+                        ? Colors.grey.shade300
+                        : Colors.white.withValues(alpha: 0.24),
+                  ),
                 ),
-                strong: TextStyle(
-                  color: isUser ? Colors.black : Colors.white,
-                  fontWeight: FontWeight.bold,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.image_outlined,
+                      size: 14,
+                      color: isUser ? Colors.black54 : Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      attachmentLabel,
+                      style: TextStyle(
+                        color: isUser ? Colors.black87 : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                listBullet: TextStyle(
-                  color: isUser ? Colors.black87 : Colors.white,
-                ),
-                tableHead: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                tableBody: const TextStyle(color: Colors.white),
-                h1: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                h2: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                h3: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
-            ),
+            ],
+            if (message.trim().isNotEmpty)
+              MarkdownBody(
+                data: message,
+                styleSheet: MarkdownStyleSheet(
+                  p: TextStyle(
+                    color: isUser ? Colors.black87 : Colors.white,
+                    height: 1.4,
+                    fontSize: 16,
+                  ),
+                  strong: TextStyle(
+                    color: isUser ? Colors.black : Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  listBullet: TextStyle(
+                    color: isUser ? Colors.black87 : Colors.white,
+                  ),
+                  tableHead: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  tableBody: const TextStyle(color: Colors.white),
+                  h1: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  h2: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                  h3: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
             if (!isUser && msg.containsKey('event_data')) ...[
                const SizedBox(height: 12),
                _buildEventCard(msg['event_data']!),
@@ -351,19 +318,22 @@ class _ChatPageState extends State<ChatPage> {
                       title: title,
                       location: '',
                       startTime: dt,
-                      endTime: dt.add(const Duration(hours: 1)),
+                      endTime: dt.add(const Duration(hours: 2)),
                       subjectId: null,
                       isRecurring: false
                     );
-                    DateTime notifyTime = dt.subtract(const Duration(minutes: 15));
-                    if (notifyTime.isBefore(DateTime.now())) notifyTime = DateTime.now().add(const Duration(seconds: 10));
-                    NotificationService().scheduleNotification(
-                       id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-                       title: 'Upcoming Event: $title',
-                       body: 'Event starting soon!',
-                       scheduledTime: notifyTime, 
+                    final reminderTime = dt.subtract(const Duration(hours: 1));
+                    if (reminderTime.isAfter(DateTime.now())) {
+                      NotificationService().scheduleNotification(
+                        id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+                        title: 'Upcoming Event: $title',
+                        body: 'Starts at ${DateFormat('h:mm a').format(dt)}',
+                        scheduledTime: reminderTime,
+                      );
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Date added to calendar')),
                     );
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added $title to Calendar!')));
                   }
                 } catch(e) {
                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error adding event: $e')));
@@ -448,11 +418,22 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _handleSend(String text) async {
-    if (text.trim().isEmpty) return;
-    
+    final trimmedText = text.trim();
+    final selectedImage = _selectedImage;
+    final imageBase64 = _imageBase64;
+    final hasImage = selectedImage != null && imageBase64 != null;
+
+    if (trimmedText.isEmpty && !hasImage) return;
+
     _controller.clear();
     setState(() {
-      _messages.add({'role': 'user', 'content': text});
+      _messages.add({
+        'role': 'user',
+        'content': trimmedText.isEmpty ? ' ' : trimmedText,
+        if (hasImage) 'attachment': 'Image attached',
+      });
+      _selectedImage = null;
+      _imageBase64 = null;
       _isLoading = true;
     });
     
@@ -476,7 +457,11 @@ class _ChatPageState extends State<ChatPage> {
           history.removeLast(); 
       }
 
-      final response = await ApiClient().chat(text, history: history, imageBase64: _imageBase64);
+      final response = await ApiClient().chat(
+        trimmedText,
+        history: history,
+        imageBase64: imageBase64,
+      );
       final answer = response['answer']?.toString() ?? "I didn't get an answer.";
       
       Map<String, dynamic>? eventData;
@@ -490,8 +475,6 @@ class _ChatPageState extends State<ChatPage> {
           'content': answer, 
           if (eventData != null) 'event_data': jsonEncode(eventData)
         });
-        _selectedImage = null;
-        _imageBase64 = null;
       });
     } catch (e) {
       setState(() {

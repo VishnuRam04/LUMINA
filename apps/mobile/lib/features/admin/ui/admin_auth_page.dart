@@ -51,7 +51,6 @@ class AdminAuthPage extends StatelessWidget {
                           email: emailController.text.trim(),
                           password: passwordController.text.trim(),
                         );
-                        // Make sure we create the global users document so queries don't break
                         await FirebaseFirestore.instance.collection('users').doc(creds.user!.uid).set({
                           'name': 'System Admin',
                           'email': emailController.text.trim(),

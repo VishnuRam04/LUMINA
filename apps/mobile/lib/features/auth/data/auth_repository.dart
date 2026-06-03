@@ -37,14 +37,27 @@ class AuthRepository {
     }
   }
 
-  // Register with Email, Password & Name
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-email') {
+        throw 'Invalid email address';
+      } else if (e.code == 'missing-email') {
+        throw 'Please enter your email address';
+      } else if (e.code == 'user-not-found') {
+        throw 'No account found for that email';
+      }
+      throw e.message ?? 'Failed to send reset email';
+    }
+  }
+
   Future<UserCredential> signUp({
     required String email, 
     required String password,
     required String name
   }) async {
     try {
-      // 1. Create Auth User
       print('DEBUG: Starting signUp for $email...');
       UserCredential cred = await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -52,7 +65,6 @@ class AuthRepository {
       );
       print('DEBUG: User created: ${cred.user?.uid}');
 
-      // 2. Save User Data to Firestore
       if (cred.user != null) {
         try {
           print('DEBUG: Writing to Firestore...');
@@ -61,15 +73,13 @@ class AuthRepository {
             'email': email,
             'name': name,
             'createdAt': FieldValue.serverTimestamp(),
-          }).timeout(const Duration(seconds: 10)); // Timeout after 10s if stuck
+          }).timeout(const Duration(seconds: 10)); 
           print('DEBUG: Firestore write complete');
         } catch (e) {
           print('DEBUG: Firestore error: $e');
-          // Don't fail the whole registration if just Firestore fails, but good to know
-          // Ideally we should handle this, but for now we proceed
+       
         }
 
-        // 3. Update Display Name
         await cred.user!.updateDisplayName(name);
         print('DEBUG: Profile updated');
       }
@@ -81,7 +91,6 @@ class AuthRepository {
     }
   }
 
-  // Sign Out
   Future<void> signOut() async {
     await _auth.signOut();
   }

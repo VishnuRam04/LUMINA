@@ -22,7 +22,6 @@ class KanbanRepository {
         .map(
           (snap) => snap.docs.map((d) {
             final data = d.data();
-            // We store created_by for knowing who actually owns it
             return KanbanBoard.fromMap(d.id, data)
               ..ownerUid = data['created_by'] ?? data['owner_uid'] ?? '';
           }).toList(),
@@ -44,8 +43,7 @@ class KanbanRepository {
       print(
         'Query for existing share code failed (possibly rules propagation): $e',
       );
-      // If the list query fails due to temporary permissions, we gracefully fallback
-      // and just create a new code. Overwriting is safe.
+
     }
 
     String code = (100000 + DateTime.now().microsecondsSinceEpoch % 900000)
@@ -58,7 +56,7 @@ class KanbanRepository {
       });
     } catch (e) {
       print('Creating share code failed: $e');
-      return 'FAILED'; // Special string handled optionally
+      return 'FAILED'; 
     }
 
     return code;
@@ -90,6 +88,18 @@ class KanbanRepository {
     });
   }
 
+  Future<void> updateBoard({
+    required String boardId,
+    required String title,
+    required String description,
+  }) async {
+    await _boardsRef().doc(boardId).update({
+      'title': title,
+      'description': description,
+      'updated_at': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<bool> joinBoard(String guestUid, String boardCode) async {
     if (boardCode.length != 6) return false;
     final doc = await _db.collection('board_codes').doc(boardCode).get();
@@ -99,9 +109,8 @@ class KanbanRepository {
     final String ownerUid = data['owner_uid'];
     final String boardId = data['board_id'];
 
-    if (ownerUid == guestUid) return true; // Already owns it
+    if (ownerUid == guestUid) return true; 
 
-    // 1. Add guest to the actual Board's members list directly
     final currentAvatarUrl = FirebaseAuth.instance.currentUser?.photoURL ?? '';
     final currentName = FirebaseAuth.instance.currentUser?.displayName ?? 'User';
     
@@ -115,10 +124,44 @@ class KanbanRepository {
   }
 
   Future<void> deleteBoard(String uid, String boardId) async {
-    await _boardsRef().doc(boardId).delete();
+    final boardRef = _boardsRef().doc(boardId);
+    final tasksSnap = await boardRef.collection('tasks').get();
+
+    for (final taskDoc in tasksSnap.docs) {
+      final commentsSnap = await taskDoc.reference.collection('comments').get();
+      if (commentsSnap.docs.isNotEmpty) {
+        final commentsBatch = _db.batch();
+        for (final commentDoc in commentsSnap.docs) {
+          commentsBatch.delete(commentDoc.reference);
+        }
+        await commentsBatch.commit();
+      }
+    }
+
+    if (tasksSnap.docs.isNotEmpty) {
+      final tasksBatch = _db.batch();
+      for (final taskDoc in tasksSnap.docs) {
+        tasksBatch.delete(taskDoc.reference);
+      }
+      await tasksBatch.commit();
+    }
+
+    final boardCodesSnap = await _db
+        .collection('board_codes')
+        .where('board_id', isEqualTo: boardId)
+        .get();
+
+    if (boardCodesSnap.docs.isNotEmpty) {
+      final codesBatch = _db.batch();
+      for (final codeDoc in boardCodesSnap.docs) {
+        codesBatch.delete(codeDoc.reference);
+      }
+      await codesBatch.commit();
+    }
+
+    await boardRef.delete();
   }
 
-  // --- Tasks ---
 
   Stream<List<KanbanTask>> watchTasks(String uid, String boardId) {
     return _boardsRef()
@@ -188,7 +231,6 @@ class KanbanRepository {
         .update(data);
   }
 
-  // --- Comments ---
   Stream<List<KanbanComment>> watchComments(
     String uid,
     String boardId,
@@ -220,7 +262,6 @@ class KanbanRepository {
     final commentsRef = taskRef.collection('comments');
 
     await _db.runTransaction((tx) async {
-      // 1. Add the comment document
       final newCommentRef = commentsRef.doc();
       tx.set(newCommentRef, {
         'text': text,
@@ -228,7 +269,6 @@ class KanbanRepository {
         'created_at': FieldValue.serverTimestamp(),
       });
 
-      // 2. Increment comment count and update unread status
       final taskUpdate = <String, dynamic>{
         'comment_count': FieldValue.increment(1),
       };

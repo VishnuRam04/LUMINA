@@ -57,8 +57,105 @@ class _SubjectsPageState extends State<SubjectsPage> {
   }
 
   Future<void> _studyPlan(Subject subject) async {
+    if (uid == null) return;
+    
+    if (subject.hasStudyPlan && subject.initialEventsData.isNotEmpty) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Study Plan Setup'),
+          content: const Text('Would you like to upload a new course outline, or edit your currently saved study plan?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'upload'),
+              child: const Text('Upload New'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'edit'),
+              child: const Text('Edit Plan'),
+            ),
+          ],
+        ),
+      );
+      
+      if (choice == 'upload') {
+        await _pickAndUploadFile(subject);
+      } else if (choice == 'edit') {
+        final files = await fileRepo.getFiles(uid!, subject.id);
+        final fileNames = files.map((f) => f.name).toList();
+        
+        await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => StudyPlanSetupDialog(
+            initialEvents: subject.initialEventsData,
+            subject: subject,
+            fileNames: fileNames,
+          ),
+        );
+      }
+    } else {
+      await _pickAndUploadFile(subject);
+    }
+  }
 
-    await _pickAndUploadFile(subject);
+  Future<void> _generateFromExisting(Subject subject, String filename) async {
+    if (uid == null) return;
+    
+    setState(() => _uploadingStates[subject.id] = true);
+    try {
+      final safeName = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final fullPath = 'users/$uid/subjects/${subject.id}/files/$safeName';
+
+      final planData = await ApiClient().studyPlan(
+        filePath: fullPath,
+        subjectId: subject.id,
+        filename: filename,
+        section: subject.section,
+      );
+      print('Study plan generated for $fullPath');
+
+      if (mounted) {
+        final events = planData['events'] as List<dynamic>? ?? [];
+        final files = await fileRepo.getFiles(uid!, subject.id);
+        final fileNames = files.map((f) => f.name).toList();
+
+        final result = await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => StudyPlanSetupDialog(
+            initialEvents: events,
+            subject: subject,
+            fileNames: fileNames,
+          ),
+        );
+        
+        if (result == true && mounted) {
+            final bloomLevelsRaw = planData['bloom_levels'] as List<dynamic>? ?? [];
+            final List<String> bloomLevels = bloomLevelsRaw.map((e) => e.toString()).toList();
+            await repo.updateSubjectStudyPlanData(
+                uid: uid!,
+                subjectId: subject.id,
+                hasStudyPlan: true,
+                bloomLevels: bloomLevels,
+                initialEventsData: events,
+            );
+        }
+      }
+    } catch (e) {
+      print('Study plan generation failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Study Plan generation failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingStates[subject.id] = false);
+      }
+    }
   }
 
   Future<void> _pickAndUploadFile(Subject subject) async {
@@ -137,6 +234,7 @@ class _SubjectsPageState extends State<SubjectsPage> {
                     subjectId: subject.id,
                     hasStudyPlan: true,
                     bloomLevels: bloomLevels,
+                    initialEventsData: events,
                 );
             }
           }
@@ -224,6 +322,64 @@ class _SubjectsPageState extends State<SubjectsPage> {
         subjectCode: codeCtrl.text,
         subjectLecturer: lecturerCtrl.text,
         colorHex: colorStr,
+        section: sectionCtrl.text,
+      );
+    }
+  }
+
+  Future<void> _editSubject(Subject subject) async {
+    final nameCtrl = TextEditingController(text: subject.subjectName);
+    final codeCtrl = TextEditingController(text: subject.subjectCode);
+    final sectionCtrl = TextEditingController(text: subject.section ?? '');
+    final lecturerCtrl = TextEditingController(text: subject.subjectLecturer);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Edit Subject'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Subject Name'),
+              ),
+              TextField(
+                controller: codeCtrl,
+                decoration: const InputDecoration(labelText: 'Subject Code'),
+              ),
+              TextField(
+                controller: sectionCtrl,
+                decoration: const InputDecoration(labelText: 'Section (e.g. 1)'),
+              ),
+              TextField(
+                controller: lecturerCtrl,
+                decoration: const InputDecoration(labelText: 'Subject Lecturer'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true && uid != null) {
+      await repo.updateSubject(
+        uid: uid!,
+        subjectId: subject.id,
+        subjectName: nameCtrl.text,
+        subjectCode: codeCtrl.text,
+        subjectLecturer: lecturerCtrl.text,
         section: sectionCtrl.text,
       );
     }
@@ -325,6 +481,7 @@ class _SubjectsPageState extends State<SubjectsPage> {
                             padding: const EdgeInsets.only(bottom: 16),
                             child: SubjectCard(
                               subject: s,
+                              onEdit: () => _editSubject(s),
                               onDelete: () => _deleteSubjectWithFiles(s),
                               onTap: () {
                                 Navigator.push(
@@ -365,6 +522,7 @@ class SubjectCard extends StatelessWidget {
   const SubjectCard({
     super.key,
     required this.subject,
+    required this.onEdit,
     required this.onDelete,
     this.onTap,
     this.onStudyPlan,
@@ -372,6 +530,7 @@ class SubjectCard extends StatelessWidget {
   });
 
   final Subject subject;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onTap;
   final VoidCallback? onStudyPlan;
@@ -391,11 +550,18 @@ class SubjectCard extends StatelessWidget {
         showCupertinoModalPopup<void>(
           context: context,
           builder: (BuildContext context) => CupertinoActionSheet(
-            title: const Text('Delete Subject'),
+            title: const Text('Subject Options'),
             message: Text(
-              'Are you sure you want to delete ${subject.subjectName}?',
+              'What would you like to do with ${subject.subjectName}?',
             ),
             actions: <CupertinoActionSheetAction>[
+              CupertinoActionSheetAction(
+                onPressed: () {
+                  Navigator.pop(context);
+                  onEdit();
+                },
+                child: const Text('Edit Subject'),
+              ),
               CupertinoActionSheetAction(
                 isDestructiveAction: true,
                 onPressed: () {

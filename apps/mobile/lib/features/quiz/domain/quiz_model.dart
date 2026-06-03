@@ -1,6 +1,6 @@
 class QuizQuestion {
   final String id;
-  final String type; // 'multiple_choice' or 'open_ended'
+  final String type; 
   final String question;
   final List<String> options;
   final String? correctAnswer;

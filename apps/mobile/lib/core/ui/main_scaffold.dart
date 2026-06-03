@@ -21,7 +21,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   List<Widget> get _pages => [
     HomePage(onAskLuminaPressed: () => setState(() => _currentIndex = 2)),
     const CalendarPage(),
-    const ChatPage(), 
+    ChatPage(onBackPressed: () => setState(() => _currentIndex = 0)), 
     const SubjectsPage(),
     const KanbanPage(),
   ];
@@ -111,11 +111,12 @@ class _MainScaffoldState extends State<MainScaffold> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-             padding: const EdgeInsets.all(10),
-             child: const Icon(
-               Icons.star, 
-               color: AppColors.yellow, 
-               size: 28,
+             padding: const EdgeInsets.symmetric(vertical: 4),
+             child: Image.asset(
+               'assets/images/LUMINA FYP FINALR.png',
+               width: 50,
+               height: 50,
+               fit: BoxFit.contain,
              ),
           ),
            const SizedBox(height: 4),
@@ -132,5 +133,3 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
 }
-
-

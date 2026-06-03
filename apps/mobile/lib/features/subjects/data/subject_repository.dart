@@ -49,10 +49,13 @@ class SubjectRepository {
     required String subjectName,
     required String subjectCode,
     required String subjectLecturer,
+    String? section,
   }) async {
     await _subjectsRef(uid).doc(subjectId).update({
       'subject_name': subjectName.trim(),
       'subject_code': subjectCode.trim(),
+      'subject_lecturer': subjectLecturer.trim(),
+      if (section != null) 'section': section.trim(),
       'updated_at': FieldValue.serverTimestamp(),
     });
   }
@@ -62,10 +65,12 @@ class SubjectRepository {
     required String subjectId,
     required bool hasStudyPlan,
     required List<String> bloomLevels,
+    required List<dynamic> initialEventsData,
   }) async {
     await _subjectsRef(uid).doc(subjectId).update({
       'has_study_plan': hasStudyPlan,
       'bloom_levels': bloomLevels,
+      'initial_events_data': initialEventsData,
       'updated_at': FieldValue.serverTimestamp(),
     });
   }

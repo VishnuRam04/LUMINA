@@ -9,6 +9,7 @@ class Subject {
   final String? section;
   final bool hasStudyPlan;
   final List<String> bloomLevels;
+  final List<dynamic> initialEventsData;
 
   Subject({
     required this.id,
@@ -19,6 +20,7 @@ class Subject {
     this.section,
     this.hasStudyPlan = false,
     this.bloomLevels = const [],
+    this.initialEventsData = const [],
   });
 
   factory Subject.fromMap(String id, Map<String, dynamic> data) {
@@ -31,6 +33,7 @@ class Subject {
       section: data['section'] as String?,
       hasStudyPlan: data['has_study_plan'] as bool? ?? false,
       bloomLevels: List<String>.from(data['bloom_levels'] ?? []),
+      initialEventsData: data['initial_events_data'] as List<dynamic>? ?? [],
     );
   }
 
@@ -43,6 +46,7 @@ class Subject {
       if (section != null) 'section': section,
       'has_study_plan': hasStudyPlan,
       'bloom_levels': bloomLevels,
+      'initial_events_data': initialEventsData,
       'updated_at': FieldValue.serverTimestamp(),
       'created_at': FieldValue.serverTimestamp(),
     };

@@ -12,6 +12,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await NotificationService().init();
+  await NotificationService().cancelAllNotifications();
   runApp(const MyApp());
 }
 

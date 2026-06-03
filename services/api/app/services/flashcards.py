@@ -10,17 +10,15 @@ class FlashcardService:
     def __init__(self):
         self.db = firestore.Client()
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", 
+            model="gemini-2.5-flash", 
             google_api_key=settings.GOOGLE_API_KEY,
             temperature=0.3, 
             convert_system_message_to_human=True
         )
     async def generate_and_save(self, uid: str, subject_id: str, text_content: str, file_id: str = None, count: int = 10) -> list[Flashcard]:
-        """
-        Generates flashcards from text using LLM and saves to Firestore under the user.
-        """
+
         prompt = f"""
-        You are an expert tutor. Create {count} high-quality flashcards based on the following text.
+        You are an expert tutor. Create only {count} high-quality flashcards based on the following text.
         
         **Rules:**
         1. **Front**: A clear question or concept.
@@ -94,8 +92,7 @@ class FlashcardService:
 
     def update_card_sm2(self, uid: str, card_id: str, quality: int):
         """
-        Updates a card's schedule using the SM-2 algorithm.
-        quality: 0-5
+        SM2 algo update logic
         """
         doc_ref = self.db.collection("users").document(uid).collection("flashcards").document(card_id)
         snap = doc_ref.get()

@@ -6,9 +6,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class ApiClient {
   static String get baseUrl {
-    return 'https://lumina-api-63xt.onrender.com';
+    // return 'https://lumina-api-63xt.onrender.com';
+    
+    if (kIsWeb) return 'http://127.0.0.1:8000';
+    if (Platform.isAndroid) return 'http://10.0.2.2:8000';
+    return 'http://127.0.0.1:8000';
   } 
-
+  
   Future<Map<String, String>> _getHeaders() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {

@@ -13,7 +13,6 @@ class AdminManageUserPage extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('users').doc(userId).snapshots(),
       builder: (context, snapshot) {
-        // Fallback to initial data if stream is loading
         final data = snapshot.data?.data() as Map<String, dynamic>? ?? userData;
         final name = data['name'] ?? 'Unknown User';
         final email = data['email'] ?? 'No email';

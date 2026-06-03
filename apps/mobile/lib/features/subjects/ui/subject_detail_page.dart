@@ -10,6 +10,7 @@ import '../domain/subject_file.dart';
 import '../domain/subjects.dart';
 import '../../../../core/api/api_client.dart';
 import '../../chat/ui/chat_page.dart';
+import '../../flashcards/data/flashcard_repository.dart';
 import '../../flashcards/ui/flashcard_deck_page.dart';
 import '../../quiz/data/quiz_repository.dart';
 import '../../quiz/domain/quiz_model.dart';
@@ -29,6 +30,7 @@ class SubjectDetailPage extends StatefulWidget {
 class _SubjectDetailPageState extends State<SubjectDetailPage> {
 
   late final FileRepository fileRepo;
+  late final FlashcardRepository flashcardRepo;
   late final QuizRepository quizRepo;
   late Future<List<Quiz>> _quizzesFuture;
   String? uid;
@@ -48,6 +50,7 @@ void dispose() {
   void initState() {
     super.initState();
     fileRepo = FileRepository(FirebaseFirestore.instance, FirebaseStorage.instance);
+    flashcardRepo = FlashcardRepository();
     quizRepo = QuizRepository();
     _quizzesFuture = quizRepo.fetchQuizzes(widget.subject.id);
     _init(); 
@@ -118,7 +121,7 @@ void dispose() {
 
         if (mounted) {
            ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('File uploaded and processing started...')),
+             const SnackBar(content: Text('File uploaded')),
            );
         }
       } catch (e) {
@@ -146,7 +149,6 @@ void dispose() {
     return Scaffold(
       body: Stack(
         children: [
-          // Background
           Positioned.fill(
             child: Image.asset(
               'assets/images/background.png',
@@ -203,7 +205,12 @@ void dispose() {
                         'Generated Quiz',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      IconButton(
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4C4EA1),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                         onPressed: () async {
                           if (uid == null) return;
                           
@@ -227,7 +234,8 @@ void dispose() {
                             _refreshQuizzes();
                           }
                         }, 
-                        icon: const Icon(Icons.add_circle, color: Color(0xFF4C4EA1))
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Generate'),
                       )
                     ],
                   ),
@@ -235,31 +243,59 @@ void dispose() {
                   const SizedBox(height: 12),
 
 
-                  SizedBox(
-                    height: 180,
-                    child: FutureBuilder<List<Quiz>>(
-                      future: _quizzesFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                           print("Quiz Fetch Error: ${snapshot.error}"); 
-                           return Center(child: Text("Error loading quizzes. Check console.", style: TextStyle(color: Colors.red, fontSize: 10)));
-                        }
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                           return const Center(child: CircularProgressIndicator());
-                        }
-                        
-                        final quizzes = snapshot.data ?? [];
-                        
-                        return ListView.separated(
+                  FutureBuilder<List<Quiz>>(
+                    future: _quizzesFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                         print("Quiz Fetch Error: ${snapshot.error}"); 
+                         return const Center(child: Text("Error loading quizzes. Check console.", style: TextStyle(color: Colors.red, fontSize: 10)));
+                      }
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                         return const Center(child: CircularProgressIndicator());
+                      }
+                      
+                      final quizzes = snapshot.data ?? [];
+                      
+                      if (quizzes.isEmpty) {
+                        return Container(
+                          height: 180,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.quiz_outlined, size: 48, color: Colors.grey.shade400),
+                              const SizedBox(height: 12),
+                              Text(
+                                "No quizzes generated yet",
+                                style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Click Generate to test your knowledge!",
+                                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      
+                      return SizedBox(
+                        height: 180,
+                        child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: quizzes.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 12),
                           itemBuilder: (context, index) {
                             return _buildQuizCard(quizzes[index]);
                           },
-                        );
-                      }
-                    ),
+                        ),
+                      );
+                    }
                   ),
 
                   const SizedBox(height: 24),
@@ -500,12 +536,7 @@ void dispose() {
           Text(quiz.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
           Text('${quiz.questions.length} Questions', style: const TextStyle(fontSize: 10, color: Colors.black54)),
-          if (quiz.lastScore != null) ...[
-             const SizedBox(height: 2),
-             Text('Score: ${quiz.lastScore!.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green)),
-          ],
-          if (quiz.attempts > 0)
-             Text('Attempts: ${quiz.attempts}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+
              
           const Spacer(),
           SizedBox(
@@ -558,7 +589,17 @@ void dispose() {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                 const Icon(Icons.auto_awesome, color: Colors.amber, size: 24),
+                 Image.asset(
+                   'assets/images/LUMINA FYP FINALR.png',
+                   width: 28,
+                   height: 28,
+                   fit: BoxFit.contain,
+                   errorBuilder: (_, __, ___) => const Icon(
+                     Icons.auto_awesome,
+                     color: Colors.amber,
+                     size: 24,
+                   ),
+                 ),
                  const SizedBox(width: 8),
                  RichText(
                    text: const TextSpan(
@@ -634,6 +675,7 @@ void dispose() {
                            fileId: file.id,
                            filename: file.name,
                          );
+                         await flashcardRepo.deleteCardsByFileId(uid!, file.name);
                          
                          try {
                            await ApiClient().deleteFile(file.name);

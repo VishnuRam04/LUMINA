@@ -3,12 +3,11 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_google_firestore import FirestoreVectorStore
 from app.core.config import settings
 from google.cloud import firestore
-from google.cloud.firestore_v1.base_query import FieldFilter, And
+from google.cloud.firestore_v1.base_query import FieldFilter
 import os
 
 class CustomGoogleGenerativeAIEmbeddings(GoogleGenerativeAIEmbeddings):
     def embed_documents(self, texts: list[str], task_type: str = None) -> list[list[float]]:
-        # Force 768 dimensions
         return super().embed_documents(texts, task_type=task_type, output_dimensionality=768)
 
     def embed_query(self, text: str, task_type: str = None) -> list[float]:
@@ -81,14 +80,12 @@ class VectorStoreService:
         except Exception as e:
            print(f"Error deleting from Vector DB: {e}")
 
-    def similarity_search(self, query: str, user_id: str, subject_id: str = None, k=10):
+    def similarity_search(self, query: str, user_id: str, k=10):
         query_embedding = self.embeddings.embed_query(query)
         import numpy as np
         from langchain_core.documents import Document
         
         docs_ref = self.db.collection(self.collection_name).where(filter=FieldFilter("metadata.user_id", "==", user_id))
-        if subject_id:
-            docs_ref = docs_ref.where(filter=FieldFilter("metadata.subject_id", "==", subject_id))
             
         docs = docs_ref.stream()
         
@@ -108,9 +105,9 @@ class VectorStoreService:
             
         return results
     
-    def similarity_search_with_retry(self, query: str, user_id: str, subject_id: str = None, k=10):
+    def similarity_search_with_retry(self, query: str, user_id: str, k=10):
         try:
-            return self.similarity_search(query, user_id, subject_id, k)
+            return self.similarity_search(query, user_id, k)
         except Exception as e:
             error_str = str(e)
             if "https://console.firebase.google.com" in error_str:
@@ -125,12 +122,8 @@ class VectorStoreService:
                 print("="*80 + "\n")
             raise e
     
-    def as_retriever(self, user_id: str, subject_id: str = None):
-        filters_list = [FieldFilter("metadata.user_id", "==", user_id)]
-        if subject_id:
-            filters_list.append(FieldFilter("metadata.subject_id", "==", subject_id))
-            
-        comp_filter = And(filters=filters_list)
+    def as_retriever(self, user_id: str):
+        comp_filter = FieldFilter("metadata.user_id", "==", user_id)
         return self.vector_db.as_retriever(
             search_kwargs={"filters": comp_filter}
         )

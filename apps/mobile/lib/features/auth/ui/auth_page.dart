@@ -22,11 +22,51 @@ class AuthPage extends StatefulWidget {
 class _AuthPageState extends State<AuthPage> {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
+    final _authRepository = AuthRepository();
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email address first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _authRepository.sendPasswordReset(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Password reset email sent to $email'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent, // Wait, if the image covers it, this is fine
+      backgroundColor: Colors.transparent, 
       body: Stack(
       children: [
         Positioned.fill(
@@ -36,9 +76,9 @@ class _AuthPageState extends State<AuthPage> {
           ),
         ),
         Align(
-          alignment: const Alignment(0, -1.15), // 0 is center, -0.2 moves it up ~10% of screen
+          alignment: const Alignment(0, -1.15), 
           child: Column(
-            mainAxisSize: MainAxisSize.min, // Shrink to fit content so Align works
+            mainAxisSize: MainAxisSize.min, 
             children: [
               Image.asset(
                 'assets/images/luminalogo.png',
@@ -46,11 +86,10 @@ class _AuthPageState extends State<AuthPage> {
                 width: 300,
               ),
               const SizedBox(height: 20),
-              // Use explicit style to ensure visibility against background
               const Text(
                 'Welcome Student', 
                 style: TextStyle(
-                  color: Colors.black, // Changed to black/dark blue to be visible on white bg 
+                  color: Colors.black, 
                   fontSize: 18,
                   fontWeight: FontWeight.bold
                 )
@@ -58,7 +97,7 @@ class _AuthPageState extends State<AuthPage> {
               const Text(
                 'Sign in to continue your learning journey', 
                 style: TextStyle(
-                  color: Colors.grey, // Changed to black/dark blue to be visible on white bg 
+                  color: Colors.grey, 
                   fontSize: 11,
                   fontWeight: FontWeight.w200
                 )
@@ -110,9 +149,7 @@ class _AuthPageState extends State<AuthPage> {
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: GestureDetector(
-                            onTap: () {
-                              // TODO: Implement Forgot Password
-                            },
+                            onTap: _handleForgotPassword,
                             child: const Text(
                               'Forgot Password ?', 
                               style: TextStyle(
@@ -131,7 +168,7 @@ class _AuthPageState extends State<AuthPage> {
                 child: ElevatedButton(
                 onPressed: () async {
                   try {
-                    await AuthRepository().signIn(
+                    await _authRepository.signIn(
                       emailController.text.trim(),
                       passwordController.text.trim(),
                     );
@@ -182,7 +219,7 @@ class _AuthPageState extends State<AuthPage> {
                 TextSpan(
                     text: 'Register Now',
                     style: const TextStyle(
-                    color: Color(0xFF4C4EA1), // darker color
+                    color: Color(0xFF4C4EA1), 
                     fontWeight: FontWeight.w400,
                     ),
                     recognizer: TapGestureRecognizer()
@@ -195,15 +232,6 @@ class _AuthPageState extends State<AuthPage> {
             ),
             ),
 
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const MainScaffold()),
-                  );
-                },
-                child: const Text('Bypass Auth (Test)'),
-              ),
               const SizedBox(height: 10),
               TextButton.icon(
                 onPressed: () {

@@ -22,7 +22,6 @@ class FlashcardRepository {
         .where('subject_id', isEqualTo: subjectId);
     
     if (fileId != null) {
-      // Assuming file_id is stored in snake_case in Firestore (from Python model)
       query = query.where('file_id', isEqualTo: fileId);
     }
 
@@ -33,11 +32,9 @@ class FlashcardRepository {
             .toList());
   }
   
-  // Future: Filter by 'new', 'learning' if needed for different tabs
 
   Future<void> reviewCard(String cardId, int rating) async {
-    // 1-2: Need Review, 3-5: Got It
-    // In UI: "Need Review" maps to 1. "I Got It" maps to 5.
+
     await _apiClient.reviewFlashcard(cardId, rating);
   }
   
@@ -47,5 +44,22 @@ class FlashcardRepository {
 
   Future<void> generateMore(String subjectId, String text) async {
     await _apiClient.manualGenerateFlashcards(subjectId, text);
+  }
+
+  Future<void> deleteCardsByFileId(String uid, String fileId) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('flashcards')
+        .where('file_id', isEqualTo: fileId)
+        .get();
+
+    if (snapshot.docs.isEmpty) return;
+
+    final batch = _firestore.batch();
+    for (final doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
   }
 }

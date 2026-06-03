@@ -16,11 +16,9 @@ class _QuizPageState extends State<QuizPage> {
   int _currentIndex = 0;
   final QuizRepository _repo = QuizRepository();
   
-  // State for Open Ended
   final TextEditingController _answerController = TextEditingController();
   bool _isChecking = false;
   
-  // Feedback Data
   Map<String, dynamic> _feedback = {}; 
   Map<String, String> _userAnswers = {}; 
 
@@ -38,21 +36,7 @@ class _QuizPageState extends State<QuizPage> {
         _answerController.clear();
       });
     } else {
-      // Finish
-      int correctCount = 0;
-      _feedback.forEach((key, value) {
-        if (value['is_correct'] == true) correctCount++;
-      });
-      double finalScore = (correctCount / widget.quiz.questions.length) * 100;
 
-      try {
-        await _repo.updateScore(widget.quiz.id, finalScore);
-      } catch (e) {
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save score: $e')));
-        }
-      }
-      
       if (mounted) {
         Navigator.pop(context);
       }
@@ -101,7 +85,6 @@ class _QuizPageState extends State<QuizPage> {
       ),
       body: Column(
         children: [
-          // Progress Bar
           LinearProgressIndicator(
             value: (_currentIndex + 1) / widget.quiz.questions.length,
             backgroundColor: Colors.grey[200],
@@ -131,7 +114,6 @@ class _QuizPageState extends State<QuizPage> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          // Question Box
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -145,7 +127,6 @@ class _QuizPageState extends State<QuizPage> {
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
-                // Image placeholder if we had images
               ],
             ),
           ),
@@ -213,7 +194,6 @@ class _QuizPageState extends State<QuizPage> {
                )
           ],
 
-          // Feedback Section
           if (isAnswered) ...[
             const SizedBox(height: 24),
             Container(

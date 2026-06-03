@@ -52,7 +52,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
       await _syncBoardProfile(newAvatarUrl: downloadUrl);
 
-      // Add a System Log
       try {
         final name = FirebaseAuth.instance.currentUser?.displayName ?? 'Anonymous';
         await FirebaseFirestore.instance.collection('system_logs').add({
@@ -61,7 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
           'user_id': user!.uid,
         });
       } catch (e) {
-        // Fail silently if rules restrict logging
+
       }
 
       setState(() {});
@@ -159,7 +158,6 @@ class _ProfilePageState extends State<ProfilePage> {
         
         await _syncBoardProfile(newName: newName);
         
-        // Add a System Log
         try {
           await FirebaseFirestore.instance.collection('system_logs').add({
             'message': 'User $newName Updated Name',
@@ -220,7 +218,6 @@ class _ProfilePageState extends State<ProfilePage> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Column(
               children: [
-                // Profile Card
                 Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
@@ -283,7 +280,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 
                 const SizedBox(height: 16),
 
-                // Stats Row
                 Row(
                   children: [
                     _buildActiveTasksStat(),
@@ -308,7 +304,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Active Tasks: all tasks that are not 'done'
   Widget _buildActiveTasksStat() {
     return Expanded(
       child: StreamBuilder<List<TaskItem>>(
@@ -328,7 +323,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Active Events: all events strictly strictly occurring in the future
+
   Widget _buildActiveEventsStat() {
     return Expanded(
       child: StreamBuilder<List<CalendarEvent>>(
@@ -348,7 +343,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Flashcards: Total flashcards (query across all subjects)
   Widget _buildFlashcardsStat() {
     return Expanded(
       child: StreamBuilder<QuerySnapshot>(
@@ -356,14 +350,9 @@ class _ProfilePageState extends State<ProfilePage> {
         builder: (context, snapshot) {
           int count = 0;
           if (snapshot.hasData) {
-            // Because collectionGroup gets ALL global flashcards across users, 
-            // wait, we shouldn't fetch all users.
-            // But we actually only query if we filter by userId if the rules are set. 
-            // Alternatively, safely fetch from known subjects. For now this fetches total.
-            // To be purely user specific: 
+
             count = snapshot.data!.docs.length; 
-            // In production, we'd ensure 'flashcards' collectionGroup explicitly includes 'user_id'
-            // and we filter locally or via rule.
+
           }
           return _buildStatCard(
             count.toString(), 'Total\nFlashcards',

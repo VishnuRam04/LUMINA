@@ -62,7 +62,6 @@ class _KanbanPageState extends State<KanbanPage> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Share logic
                     Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
@@ -71,8 +70,7 @@ class _KanbanPageState extends State<KanbanPage> {
                     side: const BorderSide(
                       color: Color(0xFF4C4EA1),
                       width: 2,
-                    ), // Gradient border simulated
-                    // For exact gradient border we need a Container but simple border is okay for now
+                    ), 
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -111,7 +109,7 @@ class _KanbanPageState extends State<KanbanPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(6, (index) {
                 return Container(
-                  width: 30, // Narrow fields for code
+                  width: 30, 
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   child: TextField(
                     controller: codeCtrls[index],
@@ -211,7 +209,6 @@ class _KanbanPageState extends State<KanbanPage> {
               controller: descCtrl,
               decoration: const InputDecoration(labelText: 'Description'),
             ),
-            // Visibility, etc.
           ],
         ),
         actions: [
@@ -238,6 +235,60 @@ class _KanbanPageState extends State<KanbanPage> {
     );
   }
 
+  void _showEditDialog(KanbanBoard board) {
+    final titleCtrl = TextEditingController(text: board.title);
+    final descCtrl = TextEditingController(text: board.description);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Board'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleCtrl,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final title = titleCtrl.text.trim();
+              final description = descCtrl.text.trim();
+              if (title.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Board title cannot be empty.')),
+                );
+                return;
+              }
+
+              await repo.updateBoard(
+                boardId: board.id,
+                title: title,
+                description: description,
+              );
+
+              if (context.mounted) {
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save Changes'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (uid == null) {
@@ -247,7 +298,6 @@ class _KanbanPageState extends State<KanbanPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Background
         Positioned.fill(
           child: Image.asset('assets/images/background.png', fit: BoxFit.cover),
         ),
@@ -255,7 +305,7 @@ class _KanbanPageState extends State<KanbanPage> {
         SafeArea(
           child: Column(
             children: [
-              // Header
+              
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Row(
@@ -268,12 +318,10 @@ class _KanbanPageState extends State<KanbanPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    // Add any header icons if needed
                   ],
                 ),
               ),
 
-              // Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -283,7 +331,7 @@ class _KanbanPageState extends State<KanbanPage> {
                         controller: _searchCtrl,
                         decoration: InputDecoration(
                           hintText:
-                              'Value', // As per image mockup text 'Value' (?) or 'Search'
+                              'Value', 
                           prefixIcon: const Icon(Icons.search),
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.5),
@@ -298,21 +346,14 @@ class _KanbanPageState extends State<KanbanPage> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.tune),
-                    ),
+
                   ],
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              // Board List
+           
               Expanded(
                 child: StreamBuilder<List<KanbanBoard>>(
                   stream: repo.watchBoards(uid!),
@@ -340,6 +381,7 @@ class _KanbanPageState extends State<KanbanPage> {
                           uid: uid!,
                           onDelete: () => repo.deleteBoard(b.ownerUid, b.id),
                           onShare: () => _showShareDialog(b),
+                          onEdit: () => _showEditDialog(b),
                         );
                       },
                     );
@@ -347,7 +389,7 @@ class _KanbanPageState extends State<KanbanPage> {
                 ),
               ),
 
-              // Bottom Buttons
+              
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
@@ -374,7 +416,7 @@ class _KanbanPageState extends State<KanbanPage> {
                         icon: const Icon(Icons.add),
                         label: const Text('Create Board'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFACD16), // Yellow
+                          backgroundColor: const Color(0xFFFACD16), 
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -398,6 +440,7 @@ class KanbanBoardCard extends StatelessWidget {
   final KanbanBoard board;
   final VoidCallback onDelete;
   final VoidCallback onShare;
+  final VoidCallback onEdit;
   final String uid;
 
   const KanbanBoardCard({
@@ -406,6 +449,7 @@ class KanbanBoardCard extends StatelessWidget {
     required this.uid,
     required this.onDelete,
     required this.onShare,
+    required this.onEdit,
   });
 
   static const deepBlue = Color(0xFF4C4EA1);
@@ -414,7 +458,6 @@ class KanbanBoardCard extends StatelessWidget {
   static const lightBlue = Color(0xFFCCD6E3);
 
   String _timeAgo(DateTime d) {
-    // Simple helper
     final diff = DateTime.now().difference(d);
     if (diff.inMinutes < 60) return '${diff.inMinutes}min ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
@@ -439,6 +482,14 @@ class KanbanBoardCard extends StatelessWidget {
           builder: (context) => CupertinoActionSheet(
             title: Text(board.title),
             actions: [
+              if (board.ownerUid == uid)
+                CupertinoActionSheetAction(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onEdit();
+                  },
+                  child: const Text('Edit Board'),
+                ),
               if (board.ownerUid == uid)
                 CupertinoActionSheetAction(
                   onPressed: () {
@@ -499,14 +550,13 @@ class KanbanBoardCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
               Row(
                 children: [
                   const Icon(
                     Icons.code,
                     size: 20,
                     color: Colors.black87,
-                  ), // Assuming code icon from image '< >'
+                  ), 
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -532,7 +582,6 @@ class KanbanBoardCard extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // Avatars
               SizedBox(
                 height: 40,
                 child: Stack(
@@ -561,7 +610,6 @@ class KanbanBoardCard extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // Footer: Updated tag + Due date
               Row(
                 children: [
                   Container(
@@ -579,8 +627,7 @@ class KanbanBoardCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  // "Due 3rd Sept" - Placeholder or real field? Domain doesn't have it yet.
-                  // Showing placeholder text for now or description
+
                   Text(
                     board.description,
                     style: const TextStyle(color: Colors.grey, fontSize: 12),

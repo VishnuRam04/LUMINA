@@ -6,7 +6,7 @@ class Flashcard {
   final String? fileId;
   final String front;
   final String back;
-  final String status; // 'new', 'learning', 'mastered'
+  final String status; 
   final DateTime nextReview;
   final int repetition;
   final int interval;

@@ -51,7 +51,6 @@ def list_quizzes(subject_id: str, user: dict = Depends(get_current_user)):
     uid = user['uid']
     db = service.vector_store.db
     
-    # Query: users/{uid}/quizzes where subject_id == ...
     docs = db.collection("users").document(uid).collection("quizzes")\
              .where("subject_id", "==", subject_id)\
              .stream()
@@ -63,7 +62,6 @@ def list_quizzes(subject_id: str, user: dict = Depends(get_current_user)):
         except Exception as e:
             print(f"Error parsing quiz {doc.id}: {e}")
             
-    # Sort in memory to avoid Index requirement
     quizzes.sort(key=lambda x: x.created_at, reverse=True)
     return quizzes
 
@@ -73,7 +71,6 @@ async def delete_quiz(quiz_id: str, user: dict = Depends(get_current_user)):
     uid = user['uid']
     db = service.vector_store.db
     try:
-        # Path: users/{uid}/quizzes/{quiz_id}
         db.collection("users").document(uid).collection("quizzes").document(quiz_id).delete()
         return {"status": "success", "message": f"Quiz {quiz_id} deleted"}
     except Exception as e:
@@ -82,7 +79,6 @@ async def delete_quiz(quiz_id: str, user: dict = Depends(get_current_user)):
 @router.post("/grade", response_model=GradeResponse)
 async def grade_answer(req: GradeOpenEndedRequest, user: dict = Depends(get_current_user)):
     service = get_service()
-    # Grading is stateless but we require auth
     result = await service.grade_open_ended(req.question, req.user_answer, req.context or "")
     return result
 
@@ -99,7 +95,6 @@ async def update_quiz_score(quiz_id: str, req: UpdateQuizScoreRequest, user: dic
         raise HTTPException(status_code=404, detail="Quiz not found")
         
     try:
-        # Atomic increment of attempts and update of last_score
         doc_ref.update({
             "last_score": req.score,
             "attempts": firestore.Increment(1)
