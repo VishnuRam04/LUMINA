@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -11,8 +12,10 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await NotificationService().init();
-  await NotificationService().cancelAllNotifications(); // clear existing stack
+  if (!kIsWeb) {
+    await NotificationService().init();
+    await NotificationService().cancelAllNotifications(); // clear existing stack
+  }
   runApp(const MyApp());
 }
 
